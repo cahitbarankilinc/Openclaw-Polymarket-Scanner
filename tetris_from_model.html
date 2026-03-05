@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tetris</title>
+<style>
+  body { display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #000; }
+  canvas { border: 1px solid #fff; }
+</style>
+</head>
+<body>
+<canvas id="tetris" width="280" height="480"></canvas>
+<script>
+  const canvas = document.getElementById('tetris');
+  const ctx = canvas.getContext('2d');
+  const boardWidth = 10;
+  const boardHeight = 20;
+  const grid = Array.from({ length: boardHeight }, () => Array(boardWidth).fill(0));
+  const colors = [
+    '#000', '#F64C71', '#3BA55E', '#98AFC7',
+    '#F55E3B', '#34C7F6', '#AFC798', '#E6C734'
+  ];
+
+  const shapes = [
+    [[1, 1, 1, 1]],
+    [[1, 1], [1, 1]],
+    [[1, 1, 0], [0, 1, 1]],
+    [[0, 1, 1], [1, 1, 0]],
+    [[1, 1, 1], [0, 1, 0]],
+    [[1, 1, 1], [1, 0, 0]],
+    [[1, 1, 1], [0, 0, 1]]
+  ];
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let y = 0; y < boardHeight; y++) {
+      for (let x = 0; x < boardWidth; x++) {
+        if (grid[y][x]) {
+          ctx.fillStyle = colors[grid[y][x]];
+          ctx.fillRect(x * 28, y * 28, 28, 28);
+        }
+      }
+    }
+  }
+
+  function collision(shape, offset) {
+    for (let y = 0; y < shape.length; y++) {
+      for (let x = 0; x < shape[y].length; x++) {
+        if (shape[y][x] && (grid[y + offset.y] && grid[y + offset.y][x + offset.x]) !== 0) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function merge(shape, offset) {
+    for (let y = 0; y < shape.length; y++) {
+      for (let x = 0; x < shape[y].length; x++) {
+        if (shape[y][x]) {
+          grid[y + offset.y][x + offset.x] = shape[y][x];
+        }
+      }
+    }
+  }
+
+  function clearLines() {
+    let linesCleared = 0;
+    for (let y = boardHeight - 1; y >= 0; y--) {
+      if (grid[y].every(cell => cell)) {
+        grid.splice(y, 1);
+        grid.unshift(Array(boardWidth).fill(0));
+        y++;
+        linesCleared++;
+      }
+    }
+    return linesCleared;
+  }
+
+  function newPiece() {
+    currentPiece = {
+      shape: shapes[Math.floor(Math.random() * shapes.length)],
+      x: Math.floor(boardWidth / 2) - Math.floor(currentPiece.shape[0].length / 2),
+      y: 0
+    };
+  }
+
+  let currentPiece;
+  let dropCounter = 0;
+  let dropInterval = 500;
+  let lastTime = 0;
+
+  function update(time = 0) {
+    const deltaTime = time - lastTime;
+    lastTime = time;
+
+    dropCounter += deltaTime;
+    if (dropCounter > dropInterval) {
+      dropCounter = 0;
+      currentPiece.y++;
+      if (collision(currentPiece.shape, { y: 1, x: 0 })) {
+        currentPiece.y--;
+        merge(currentPiece.shape, { y: currentPiece.y, x: currentPiece.x });
+        newPiece();
+        if (collision(currentPiece.shape, { y: 0, x: 0 })) {
+          gameOver();
+        }
+      }
+    }
+
+    clearLines();
+    draw();
+    requestAnimationFrame(update);
+  }
+
+  function gameOver() {
+    alert('Game Over!');
+    grid = Array.from({ length: boardHeight }, () => Array(boardWidth).fill(0));
+    newPiece();
+    update();
+  }
+
+  function rotatePiece() {
+    const newShape = currentPiece.shape[0].map((_, i) => currentPiece.shape.map(row => row[i]).reverse());
+    if (!collision(newShape, { y: 0, x: 0 })) {
+      currentPiece.shape = newShape;
+    }
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') {
+      currentPiece.x--;
+      if (collision(currentPiece.shape, { y: 0, x: -1 })) {
+        currentPiece.x++;
+      }
+    } else if (e.key === 'ArrowRight') {
+      currentPiece.x++;
+      if (collision(currentPiece.shape, { y: 0, x: 1 })) {
+        currentPiece.x--;
+      }
+    } else if (e.key === 'ArrowDown') {
+      currentPiece.y++;
+      if (collision(currentPiece.shape, { y: 1, x: 0 })) {
+        currentPiece.y--;
+      }
+    } else if (e.key === 'ArrowUp') {
+      rotatePiece();
+    } else if (e.key === ' ') {
+      while (!collision(currentPiece.shape, { y: 1, x: 0 })) {
+        currentPiece.y++;
+      }
+      currentPiece.y--;
+      merge(currentPiece.shape, { y: currentPiece.y, x: currentPiece.x });
+      newPiece();
+      clearLines();
+    }
+  });
+
+  newPiece();
+  update();
+</script>
+</body>
+</html>
