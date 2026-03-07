@@ -35,6 +35,12 @@ Things like:
 
 Skills are shared. Your setup is yours. Keeping them apart means you can update skills without losing your notes, and share skills without leaking your infrastructure.
 
+## Scheduling Notes (macOS)
+
+- On this host, `at`/`atrun` is disabled by default (`com.apple.atrun` disabled).
+- Jobs can be queued with `at` but may never execute unless the daemon is explicitly enabled as root.
+- Default to `cron`/OpenClaw cron for scheduled tasks (including one-off tasks via self-removing cron entries).
+
 ---
 
 Add whatever helps you do your job. This is your cheat sheet.
