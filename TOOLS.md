@@ -39,7 +39,19 @@ Skills are shared. Your setup is yours. Keeping them apart means you can update 
 
 - On this host, `at`/`atrun` is disabled by default (`com.apple.atrun` disabled).
 - Jobs can be queued with `at` but may never execute unless the daemon is explicitly enabled as root.
-- Default to `cron`/OpenClaw cron for scheduled tasks (including one-off tasks via self-removing cron entries).
+- Default to **OpenClaw cron** for scheduled tasks (one-shot + recurring).
+- Avoid OS `crontab` writes from agent runtime here (can hang due to environment/permissions edge cases).
+
+### Cron Playbook (persistent preference)
+
+- User preference: cron requests should be handled **without extra prompting** using OpenClaw cron by default.
+- For exact output text (no LLM reformatting):
+  - Use `openclaw cron add --session isolated --no-deliver`.
+  - In job message, instruct agent to call `message` tool directly with exact text and then reply `NO_REPLY`.
+- Do **not** use `--announce` when exact text is required (announce path can produce summary-style output).
+- Use explicit timezone timestamps like `2026-03-07T13:10:00+03:00` when user gives local TR time.
+- One-shot jobs should use `--delete-after-run`.
+- After test jobs, verify with `openclaw cron runs --id <jobId>` on demand.
 
 ---
 
