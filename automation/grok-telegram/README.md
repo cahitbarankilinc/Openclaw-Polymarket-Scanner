@@ -17,7 +17,7 @@ Akış:
 6. Yanıt tamamlanana kadar bekler
 7. Son assistant mesajını DOM'dan çeker
 8. Sonucu dosyaya kaydeder
-9. Sonucu Telegram'a yollar
+9. Sonucu Telegram'a düz metin olarak yollar; mesaj çok uzunsa birkaç parçaya böler
 
 ## Dosyalar
 

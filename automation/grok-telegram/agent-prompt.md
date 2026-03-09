@@ -26,6 +26,7 @@ Amaç:
 8. İçeriği çekerken kullanıcı prompt'unu değil, **en son assistant cevabını** al.
 9. Sonuç boşsa hata ver; sessizce başarı sayma.
 10. Telegram gönderiminde tam metni ilet; özetleme yapma.
+11. Telegram'a dosya eki gönderme. Düz metin gönder. Mesaj çok uzunsa sıralı birkaç düz metin mesajına böl.
 
 Telegram gönderimi:
 - `message` aracıyla gönder.
