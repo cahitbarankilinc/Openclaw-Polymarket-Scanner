@@ -35,6 +35,13 @@ Things like:
 
 Skills are shared. Your setup is yours. Keeping them apart means you can update skills without losing your notes, and share skills without leaking your infrastructure.
 
+## Grok Automation
+
+- Fixed Chrome profile for Grok automation: `~/.openclaw/chrome-grok-profile`
+- Primary Grok page: `https://grok.com/`
+- Prompt source file: `/Users/baran/Desktop/grok/promt.md`
+- Preferred extraction method: DOM-read final assistant response first; copy button only as fallback.
+
 ## Scheduling Notes (macOS)
 
 - On this host, `at`/`atrun` is disabled by default (`com.apple.atrun` disabled).
