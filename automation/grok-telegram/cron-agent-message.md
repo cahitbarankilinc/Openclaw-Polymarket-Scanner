@@ -13,9 +13,10 @@ Yapılacaklar:
 7. Son assistant cevabını DOM'dan çek.
 8. Sonucu `/Users/baran/.openclaw/workspace/automation/grok-telegram/last-response.md` içine yaz.
 9. Sonucu Telegram hedefi `5046117769` numarasına DÜZ METİN olarak gönder.
-10. Telegram limitine takılmamak için cevabı birkaç parçaya böl. Her parçayı sırayla gönder.
-11. Dosya eki gönderme. `.md` attachment gönderme.
-12. İş bitince kısa başarı özeti ver.
+10. Telegram gönderiminde mutlaka `accountId: grok` kullan; mesajlar yalnızca `@cbaranksgrok_bot` hesabından gelsin.
+11. Telegram limitine takılmamak için cevabı birkaç parçaya böl. Her parçayı sırayla gönder.
+12. Dosya eki gönderme. `.md` attachment gönderme.
+13. İş bitince kısa başarı özeti ver.
 
 Kurallar:
 - Kör koordinat tıklaması kullanma.

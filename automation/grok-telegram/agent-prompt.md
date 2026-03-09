@@ -31,6 +31,7 @@ Amaç:
 Telegram gönderimi:
 - `message` aracıyla gönder.
 - Kanal: `telegram`
+- Account: `grok`
 - Hedef: `5046117769`
 - Mesaj: `last-response.md` içeriğinin tamamı
 - Telegram uzunluk limitine takılmamak için metni mantıklı parçalara böl ve sırayla gönder.

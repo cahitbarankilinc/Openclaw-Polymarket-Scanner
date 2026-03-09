@@ -42,6 +42,7 @@ Skills are shared. Your setup is yours. Keeping them apart means you can update 
 - Prompt source file: `/Users/baran/Desktop/grok/promt.md`
 - Preferred extraction method: DOM-read final assistant response first; copy button only as fallback.
 - Telegram delivery preference for Grok automation: send as plain text messages, not as `.md` file attachments. If too long, split into multiple consecutive text messages.
+- Grok automation must send from Telegram account `grok` (`@cbaranksgrok_bot`), not from the default bot.
 
 ## Scheduling Notes (macOS)
 

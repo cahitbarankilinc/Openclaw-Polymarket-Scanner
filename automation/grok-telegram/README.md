@@ -40,6 +40,7 @@ Bir agent turn veya sub-agent, `agent-prompt.md` talimatını izleyerek akışı
 - Grok oturumu açık
 - İlgili sekmede Browser Relay bağlı
 - Telegram hesabı OpenClaw tarafında bağlı
+- Bu akış için gönderici hesabı: `grok` (`@cbaranksgrok_bot`)
 - Telegram hedef chat id / kullanıcı adı belli
 
 ## Not
