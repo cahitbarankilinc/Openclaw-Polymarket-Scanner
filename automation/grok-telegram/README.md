@@ -9,8 +9,8 @@ Sebep: `browser` ve `message` yetkileri doğrudan agent araçlarıdır; düz bir
 
 Akış:
 
-1. Sabit Chrome profili açılır: `~/.openclaw/chrome-grok-profile`
-2. `https://grok.com/` sekmesi açık ve giriş yapılmış olur
+1. Sabit Chrome profili kullanılır: `~/.openclaw/chrome-grok-profile`
+2. Her çalışmada `https://grok.com/` açılır veya mevcut Grok sekmesi bu URL'ye yönlendirilir
 3. Agent, `promt.md` içeriğini okur
 4. Browser Relay üzerinden Grok sekmesine bağlanır
 5. Prompt'u yapıştırır ve gönderir
