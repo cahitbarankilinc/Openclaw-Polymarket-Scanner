@@ -1,0 +1,22 @@
+# Grok recovery timeout fix — 2026-03-11
+
+- Kullanıcı, Grok'tan şu hata uyarısını aldı: `Cron job "grok-missed-report-recovery" failed 1 times / Last error: cron: job execution timed out`.
+- Kök neden:
+  - Recovery kontrolü OpenClaw cron içinde bir agentTurn olarak kurulmuştu.
+  - Asıl script hızlı olsa da recovery agent bazen gereksiz şekilde uzayıp 120s timeout yiyordu.
+  - Bu yüzden kontrol mantığı doğru olsa bile taşıyıcı katman kırılgandı.
+- Düzeltme:
+  - Eski recovery cron job (`90aa3924-e1f6-4ac9-bbe3-115049d83b6b`) disable edildi.
+  - Yerine doğrudan launchd tabanlı sistem-level recovery eklendi:
+    - plist: `/Users/baran/Library/LaunchAgents/ai.openclaw.grok-missed-report-recovery.plist`
+    - wrapper: `automation/grok-telegram/recover-missed-report.sh`
+    - checker: `automation/grok-telegram/recover-missed-report.mjs`
+  - Çalışma şekli:
+    - her 15 dakikada bir
+    - ayrıca sistem açıldığında `RunAtLoad`
+    - eksik Grok günlük raporu varsa ana job'u tetikler
+    - yoksa sessizce skip eder
+- Test:
+  - launch agent yüklendi (`launchctl list` içinde göründü)
+  - manuel çalıştırmada log: `{"action":"skip","reason":"job-running"...}`
+  - yani yeni hat anında cevap verdi, timeout olmadı.
