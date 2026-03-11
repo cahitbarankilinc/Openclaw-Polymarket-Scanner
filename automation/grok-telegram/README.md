@@ -1,54 +1,47 @@
-# Grok → Telegram otomasyonu
+# Grok / X.ai API otomasyonu
 
-Bu klasör, Grok cevabını tarayıcıdan alıp Telegram'a ileten akış için çalışma dosyalarını içerir.
+Bu klasör artık eski browser relay akışının değil, yeni X.ai API tabanlı Grok iş akışının talimatlarını içerir.
 
-## Mimari
+## Yeni mimari
 
-Bu akışın tarayıcı tıklama kısmı **OpenClaw agent** içinde çalışır.
-Sebep: `browser` ve `message` yetkileri doğrudan agent araçlarıdır; düz bir yerel script bunlara doğal olarak erişmez.
+Akış merkezi:
+- `~/Desktop/x_search`
 
-Akış:
-
-1. Sabit Chrome profili kullanılır: `~/.openclaw/chrome-grok-profile`
-2. Her çalışmada `https://grok.com/` açılır veya mevcut Grok sekmesi bu URL'ye yönlendirilir
-3. Agent, önce temel prompt + kısa geçmiş özetlerinden derlenmiş kompakt promptu üretir
-4. Browser Relay üzerinden Grok sekmesine bağlanır
-5. Prompt'u yapıştırır ve gönderir
-6. Yanıt tamamlanana kadar bekler
-7. Son assistant mesajını DOM'dan çeker
-8. Sonucu dosyaya kaydeder ve arşive atar
-9. Sonucu Telegram'a düz metin olarak yollar; mesaj çok uzunsa birkaç parçaya böler
-10. Akış takılırsa uzun süre asılı kalmak yerine kısmi çıktıyı kurtarıp teslim etmeye çalışır
+Temel mantık:
+1. Baz prompt korunur (`prompt.base.txt`)
+2. Son raporlardan kısa hafıza özeti çıkarılır
+3. Bu özet `prompt.txt` içine eklenir
+4. `node x-search-save-md.js` ile X.ai API request atılır
+5. Cevap tarihli `grok-output-*.md` dosyasına yazılır
+6. Kullanıcı follow-up soru sorarsa `node send-followup.js "soru"` ile son rapor bağlamlı yeni istek atılır
 
 ## Dosyalar
 
-- `agent-prompt.md` → agent'e verilecek operasyon talimatı
-- `runbook.md` → tarayıcı tarafında hangi öğelerin nasıl bulunduğu
-- `schedule-example.sh` → örnek cron kayıt komutu
-- `/Users/baran/Desktop/grok/promt.md` → temel prompt kaynağı
-- `build-prompt.mjs` → son raporlardan kısa “Benim gördüklerim” özeti üretip kompakt prompt oluşturur
-- `generated-prompt.md` → Grok'a giden nihai prompt
-- `archive-last-report.mjs` → son raporu tarih damgasıyla arşive yazar
-- `reports/` → geçmiş rapor arşivi
+Bu klasörde:
+- `agent-prompt.md` → Grok agent’ın ana sistem/talimat dosyası
+- `cron-agent-message.md` → günlük rapor + follow-up görev akışı
 
-## Kullanım şekilleri
+`~/Desktop/x_search` içinde:
+- `prompt.base.txt` → korunmuş baz prompt
+- `prompt.txt` → güncel, hafıza eklenmiş aktif prompt
+- `build-prompt.js` → son raporlardan kısa geçmiş özeti üretir ve `prompt.txt` dosyasını günceller
+- `x-search-save-md.js` → X.ai API isteğini atar ve sonucu `.md` kaydeder
+- `send-followup.js` → kullanıcının follow-up sorusunu son rapor bağlamıyla X.ai API’ye yollar
+- `grok-output-*.md` → cevap arşivi
 
-### 1) Manuel tetikleme
-Bir agent turn veya sub-agent, `agent-prompt.md` talimatını izleyerek akışı çalıştırır.
+## Görev kuralları
 
-### 2) Cron ile otomatik
-`schedule-example.sh` içindeki komutu kendine göre düzenleyip çalıştır.
+### Günlük rapor
+- Önce `node build-prompt.js`
+- Sonra `node x-search-save-md.js`
+- Gelen cevabı kullanıcıya düz metin olarak ilet
 
-## Gerekenler
+### Detay / follow-up
+- `node send-followup.js "<kullanıcının sorusu>"`
+- Sonucu kullanıcıya ilet
 
-- Chrome'da doğru profil: `~/.openclaw/chrome-grok-profile`
-- Grok oturumu açık
-- İlgili sekmede Browser Relay bağlı
-- Telegram hesabı OpenClaw tarafında bağlı
-- Bu akış için gönderici hesabı: `grok` (`@cbaranksgrok_bot`)
-- Telegram hedef chat id / kullanıcı adı belli
+## Önemli
 
-## Not
-
-Bu yapıda "Copy" butonu birincil yol değildir. Önce DOM'dan son Grok yanıtı çekilir.
-Gerekirse kopyalama butonu yedek yol olarak kullanılabilir. Bu, UI değişikliklerine karşı daha dayanıklıdır.
+- Browser / relay / grok.com akışı artık kullanılmayacak.
+- Kaynak artık doğrudan X.ai API çağrısıdır.
+- Kullanıcı detay istediğinde agent bunu otomatik follow-up request olarak yürütmelidir.
