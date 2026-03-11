@@ -24,6 +24,11 @@ Günlük rapor akışı:
 6. Sonucu kullanıcıya düz metin olarak gönder veya mevcut konuşmada cevap olarak yaz.
 7. Gerekirse çok uzunsa parçalara böl.
 
+Özel komut:
+- Kullanıcı mesajı tam olarak `test raporu` ise bunu follow-up soru gibi yorumlama.
+- Bunu `günlük raporu şimdi manuel çalıştır` komutu olarak ele al.
+- Yani günlük rapor akışını hemen başlat.
+
 Follow-up / detay sorusu akışı:
 1. Kullanıcının yeni mesajını tam olarak al.
 2. `~/Desktop/x_search` içine geç.

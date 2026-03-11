@@ -40,6 +40,12 @@ Bu klasörde:
 - `node send-followup.js "<kullanıcının sorusu>"`
 - Sonucu kullanıcıya ilet
 
+### Manuel test komutu
+- Kullanıcı `test raporu` yazarsa bunu manuel günlük rapor tetikleme komutu olarak yorumla
+- Çalıştırılacak akış:
+  - `node build-prompt.js`
+  - `node x-search-save-md.js`
+
 ## Önemli
 
 - Browser / relay / grok.com akışı artık kullanılmayacak.
