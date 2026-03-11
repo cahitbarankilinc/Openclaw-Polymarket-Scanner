@@ -1,0 +1,23 @@
+# Grok prompt optimization — 2026-03-11
+
+- Kullanıcı isteği:
+  - Son 10 raporun çok kısa özeti prompta `Benim gördüklerim` başlığıyla eklensin.
+  - Aynı haberler tekrar etmesin; Grok özellikle bunların DIŞINDA neler olduğunu arasın.
+  - Yeni ilgi alanları eklensin: sosyal medya üzerinden para kazanma, n8n, polymarket.
+  - Prompt şişmesin.
+  - Değişiklikler test edilip sonuç gösterilsin.
+- Yapılanlar:
+  - `automation/grok-telegram/build-prompt.mjs` eklendi.
+    - Temel promptu `/Users/baran/Desktop/grok/promt.md` dosyasından alıyor.
+    - Arşivdeki son 10 raporu çok kısa özetleyip `BENİM GÖRDÜKLERİM` bölümü oluşturuyor.
+    - Tekrarı azaltan yönlendirme ve yeni ilgi alanlarını kompakt şekilde ekleyip `generated-prompt.md` üretiyor.
+  - `automation/grok-telegram/archive-last-report.mjs` eklendi.
+    - `last-response.md` içeriğini timestamp'li olarak `automation/grok-telegram/reports/` altına arşivliyor.
+  - Ana Grok cron job mesajı güncellendi:
+    - Önce `build-prompt.mjs` çalıştırılacak.
+    - Sonra `generated-prompt.md` Grok'a gönderilecek.
+    - Yanıt alındıktan sonra arşive yazılacak.
+  - Temel prompta da yeni ilgi alanları eklendi: sosyal medya monetization, n8n, polymarket.
+- Not:
+  - Şu an arşivde 1 rapor vardı; zamanla 10 rapora kadar otomatik dolacak.
+  - Test için `openclaw cron run 5b030397-7df3-421b-82b4-b6f6cde88056` tetiklendi.

@@ -11,12 +11,12 @@ Akış:
 
 1. Sabit Chrome profili kullanılır: `~/.openclaw/chrome-grok-profile`
 2. Her çalışmada `https://grok.com/` açılır veya mevcut Grok sekmesi bu URL'ye yönlendirilir
-3. Agent, `promt.md` içeriğini okur
+3. Agent, önce temel prompt + kısa geçmiş özetlerinden derlenmiş kompakt promptu üretir
 4. Browser Relay üzerinden Grok sekmesine bağlanır
 5. Prompt'u yapıştırır ve gönderir
 6. Yanıt tamamlanana kadar bekler
 7. Son assistant mesajını DOM'dan çeker
-8. Sonucu dosyaya kaydeder
+8. Sonucu dosyaya kaydeder ve arşive atar
 9. Sonucu Telegram'a düz metin olarak yollar; mesaj çok uzunsa birkaç parçaya böler
 
 ## Dosyalar
@@ -24,7 +24,11 @@ Akış:
 - `agent-prompt.md` → agent'e verilecek operasyon talimatı
 - `runbook.md` → tarayıcı tarafında hangi öğelerin nasıl bulunduğu
 - `schedule-example.sh` → örnek cron kayıt komutu
-- `../Desktop/grok/promt.md` → Grok'a giden içerik kaynağı
+- `/Users/baran/Desktop/grok/promt.md` → temel prompt kaynağı
+- `build-prompt.mjs` → son raporlardan kısa “Benim gördüklerim” özeti üretip kompakt prompt oluşturur
+- `generated-prompt.md` → Grok'a giden nihai prompt
+- `archive-last-report.mjs` → son raporu tarih damgasıyla arşive yazar
+- `reports/` → geçmiş rapor arşivi
 
 ## Kullanım şekilleri
 
