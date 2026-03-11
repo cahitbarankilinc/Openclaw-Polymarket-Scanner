@@ -18,7 +18,8 @@ Yapılacaklar:
 12. Telegram gönderiminde mutlaka `accountId: grok` kullan; mesajlar yalnızca `@cbaranksgrok_bot` hesabından gelsin.
 13. Telegram limitine takılmamak için cevabı birkaç parçaya böl. Her parçayı sırayla gönder.
 14. Dosya eki gönderme. `.md` attachment gönderme.
-15. İş bitince kısa başarı özeti ver.
+15. İş bitince `/Users/baran/.openclaw/workspace/automation/grok-telegram/cleanup-chrome.sh` scriptini çalıştır; gereksiz tabları kapatıp Chrome'u gizle.
+16. İş bitince kısa başarı özeti ver.
 
 Kurallar:
 - Kör koordinat tıklaması kullanma.
