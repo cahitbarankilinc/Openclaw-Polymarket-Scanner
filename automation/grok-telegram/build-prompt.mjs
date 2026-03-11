@@ -7,7 +7,7 @@ const OUT_PROMPT = '/Users/baran/.openclaw/workspace/automation/grok-telegram/ge
 const REPORTS_DIR = '/Users/baran/.openclaw/workspace/automation/grok-telegram/reports';
 const LAST_RESPONSE = '/Users/baran/.openclaw/workspace/automation/grok-telegram/last-response.md';
 const MAX_REPORTS = 10;
-const MAX_BULLETS = 3;
+const MAX_BULLETS = 2;
 
 function ensureDir(dir) { fs.mkdirSync(dir, { recursive: true }); }
 function readIfExists(p) { try { return fs.readFileSync(p, 'utf8'); } catch { return null; } }
@@ -41,27 +41,35 @@ function summarizeReport(text, label) {
     }
     if (bullets.length >= MAX_BULLETS) break;
   }
-  const resultLine = lines.find(line => /Bugün en çok /i.test(line) || /Günün tek cümlelik ana sonucu/i.test(line));
-  const compact = bullets.slice(0, MAX_BULLETS).map(s => s.replace(/\s+/g, ' ').slice(0, 140));
-  const result = resultLine ? resultLine.replace(/\s+/g, ' ').slice(0, 140) : '';
-  return { label, compact, result };
+  const resultLine = lines.find(line => /Bugün en çok /i.test(line));
+  return {
+    label,
+    compact: bullets.slice(0, MAX_BULLETS).map(s => s.replace(/\s+/g, ' ').slice(0, 110)),
+    result: resultLine ? resultLine.replace(/\s+/g, ' ').slice(0, 110) : ''
+  };
 }
 
 const base = readIfExists(BASE_PROMPT);
 if (!base) throw new Error(`Base prompt not found: ${BASE_PROMPT}`);
 const reports = listReports().map(r => ({ ...summarizeReport(r.inline ?? fs.readFileSync(r.path,'utf8'), extractDateLabel(r.name)) }));
 const seenSection = reports.length
-  ? ['## BENİM GÖRDÜKLERİM (son raporların çok kısa özeti)', ...reports.flatMap(r => {
-      const head = `- ${r.label}: ${r.compact.join(' | ')}`.slice(0, 420);
-      return r.result ? [head, `  sonuç: ${r.result}`.slice(0, 180)] : [head];
-    }), '',
-    'Bu bölüm daha önce önüme gelen şeylerin kısa hafızasıdır.',
-    'Yeni raporda bu listedekileri kör tekrar etme.',
-    'Öncelik: bu listedekilerin DIŞINDA son 24 saatte ortaya çıkan yeni sinyal, yeni açı, yeni para kazanma yöntemi, yeni araç, yeni kullanım şekli veya önceki güne göre anlamlı değişim.',
-    'Eğer aynı konu tekrar gündemdeyse, sadece gerçekten yeni olan kısmını yaz; eskiyi yeniden uzun uzun anlatma.',
+  ? ['## BENİM GÖRDÜKLERİM', ...reports.flatMap(r => {
+      const head = `- ${r.label}: ${r.compact.join(' | ')}`.slice(0, 260);
+      return r.result ? [head, `  sonuç: ${r.result}`.slice(0, 140)] : [head];
+    }),
+    '',
+    'Bunları uzun tekrar etme; yeni olanı, değişeni ve farklı açıyı bul.',
+    'Aynı konu sürüyorsa sadece yeni kısmını yaz.',
     ''].join('\n')
   : '';
-const extraSection = `\n## EK İLGİ ALANLARIM\n- sosyal medya üzerinden para kazanma\n- n8n\n- polymarket\n\nBu alanlarda da özellikle şunları ara:\n- para kazanma modeli\n- yükselen use-case\n- Türkiye\'ye uyarlanabilir fırsat\n- hızlı test edilebilecek mikro ürün / servis fikri\n`;
-const finalPrompt = `${base.trim()}\n\n${seenSection}${extraSection}\nEk yönlendirme:\n- Bana daha önce gördüğüm şeyleri tekrarlama; yeni olanı, değişeni ve gözden kaçırmış olabileceğim kısmı bul.\n- Özellikle sosyal medya monetization, n8n otomasyonları ve polymarket etrafındaki para kazanma fırsatlarını da tarayıp rapora yedir.\n`;
+const extraSection = [
+  '## EK İLGİ ALANLARI',
+  '- sosyal medya monetization',
+  '- n8n',
+  '- polymarket',
+  '',
+  'Bunlarda özellikle: para modeli, yükselen use-case, TR’ye uyarlanabilir fırsat, hızlı test edilecek mikro ürün.'
+].join('\n');
+const finalPrompt = `${base.trim()}\n\n${seenSection}${extraSection}\n\nEk yönlendirme:\n- Daha önce gördüğüm şeyleri tekrar etme.\n- Yeni olanı ve para kazanma açısından en önemli farkı bul.\n`;
 fs.writeFileSync(OUT_PROMPT, finalPrompt.trim() + '\n');
 console.log(JSON.stringify({ ok: true, out: OUT_PROMPT, reportsUsed: reports.length }, null, 2));
