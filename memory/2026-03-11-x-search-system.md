@@ -1,0 +1,27 @@
+# X.ai API tabanlı x_search sistemi — 2026-03-11
+
+- Kullanıcı browser tabanlı Grok akışını tamamen bırakıp X.ai API tabanlı yeni sistem istedi.
+- Yeni ana dizin: `/Users/baran/Desktop/x_search`
+- İstenen davranış:
+  - `prompt.txt` günlük geçmiş özetle düzenlenip kullanılacak
+  - ardından `node x-search-save-md.js` çalıştırılacak
+  - sonuç tarihe göre markdown dosyasına kaydedilecek
+  - follow-up sorularda kullanıcı mesajı + alıntılanan önceki cevap context'e eklenip X.ai'ye yeniden gönderilecek
+- Yapılanlar:
+  - `build-prompt.js` eklendi
+    - `prompt.base.txt` yoksa ilk çalışmada mevcut `prompt.txt`'yi baz alıp oluşturuyor
+    - son 10 `grok-output-*.md` dosyasından kısa "Benim Gördüklerim" özeti çıkarıyor
+    - bu özeti `prompt.txt` içine ekleyip kaydediyor
+  - `x-search-save-md.js` sadeleştirildi ve API akışıyla uyumlu bırakıldı
+  - `send-followup.js` eklendi
+    - son markdown cevabını bağlam olarak alıyor
+    - kullanıcı follow-up sorusunu bunun üstüne koyup X.ai'ye tekrar gönderiyor
+    - gelen cevabı yeni `grok-output-*.md` dosyasına yazıyor
+- Testler:
+  - `node build-prompt.js && node x-search-save-md.js` başarılı çalıştı
+  - yeni dosya üretildi: `grok-output-2026-03-11-21-58-07.md`
+  - `node send-followup.js "Bu raporda Shopify kısmını biraz daha somutlaştır: ilk 3 günlük aksiyon planı nedir?"` başarılı çalıştı
+  - yeni dosya üretildi: `grok-output-2026-03-11-21-58-48.md`
+- Sonuç:
+  - Browser/relay bağımlılığı kaldırıldı
+  - X.ai API üstünden günlük rapor + follow-up sistemi çalışır durumda
