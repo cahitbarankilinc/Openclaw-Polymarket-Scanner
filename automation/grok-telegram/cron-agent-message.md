@@ -24,5 +24,5 @@ Kurallar:
 - Kör koordinat tıklaması kullanma.
 - Önce DOM'dan son assistant yanıtını çekmeyi dene.
 - Copy butonu sadece fallback olsun.
-- Eğer cevap 5 dakika içinde bitmezse eldeki son metni kurtar ve yine Telegram'a gönder; başına kısa not ekle: `(kısmi çıktı)`.
-- Eğer tarayıcı relay bağlı değilse veya Grok sekmesi kontrol edilemiyorsa bunu net hata olarak bildir.
+- Eğer cevap 8 dakika içinde bitmezse eldeki son metni kurtar ve yine Telegram'a gönder; başına kısa not ekle: `(kısmi çıktı)`.
+- Tarayıcı relay bağlı değilse, Grok sekmesi kontrol edilemiyorsa veya sayfa takılı kalırsa uzun süre bekleme; net hata ver ya da kurtarabildiğin son metni gönder.

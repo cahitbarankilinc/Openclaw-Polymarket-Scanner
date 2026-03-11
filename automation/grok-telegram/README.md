@@ -18,6 +18,7 @@ Akış:
 7. Son assistant mesajını DOM'dan çeker
 8. Sonucu dosyaya kaydeder ve arşive atar
 9. Sonucu Telegram'a düz metin olarak yollar; mesaj çok uzunsa birkaç parçaya böler
+10. Akış takılırsa uzun süre asılı kalmak yerine kısmi çıktıyı kurtarıp teslim etmeye çalışır
 
 ## Dosyalar
 
