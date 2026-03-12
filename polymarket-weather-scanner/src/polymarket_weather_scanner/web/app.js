@@ -1,3 +1,5 @@
+const GROUPED_BUCKET_LABELS = ['0-15¢', '15-35¢', '35-65¢', '65-85¢', '85-100¢'];
+
 const state = { items: [], summary: null };
 const summaryCards = document.getElementById('summaryCards');
 const summaryCardTemplate = document.getElementById('summaryCardTemplate');
@@ -6,6 +8,10 @@ const searchInput = document.getElementById('searchInput');
 const qualifiedOnly = document.getElementById('qualifiedOnly');
 const sortSelect = document.getElementById('sortSelect');
 const refreshButton = document.getElementById('refreshButton');
+const bucketFiltersGrid = document.getElementById('bucketFiltersGrid');
+const resetBucketFiltersButton = document.getElementById('resetBucketFilters');
+
+initBucketFilters();
 
 async function load() {
   const [summaryRes, resultsRes] = await Promise.all([
@@ -16,6 +22,36 @@ async function load() {
   state.items = await resultsRes.json();
   renderSummary();
   renderList();
+}
+
+function initBucketFilters() {
+  bucketFiltersGrid.innerHTML = GROUPED_BUCKET_LABELS.map((label, index) => renderBucketFilterPanel(label, index)).join('');
+}
+
+function renderBucketFilterPanel(label, index) {
+  return `
+    <article class="bucket-filter-panel">
+      <h3>${escapeHtml(label)}</h3>
+      <div class="bucket-filter-fields">
+        <div class="field">
+          <label for="bucket-${index}-activity-min">Min activity</label>
+          <input id="bucket-${index}-activity-min" data-bucket-index="${index}" data-filter-kind="activity-min" type="number" min="0" step="1" placeholder="örn. 20" />
+        </div>
+        <div class="field">
+          <label for="bucket-${index}-activity-max">Max activity</label>
+          <input id="bucket-${index}-activity-max" data-bucket-index="${index}" data-filter-kind="activity-max" type="number" min="0" step="1" placeholder="örn. 200" />
+        </div>
+        <div class="field">
+          <label for="bucket-${index}-winrate-min">Min win rate %</label>
+          <input id="bucket-${index}-winrate-min" data-bucket-index="${index}" data-filter-kind="winrate-min" type="number" min="0" max="100" step="0.1" placeholder="örn. 55" />
+        </div>
+        <div class="field">
+          <label for="bucket-${index}-winrate-max">Max win rate %</label>
+          <input id="bucket-${index}-winrate-max" data-bucket-index="${index}" data-filter-kind="winrate-max" type="number" min="0" max="100" step="0.1" placeholder="örn. 90" />
+        </div>
+      </div>
+    </article>
+  `;
 }
 
 function renderSummary() {
@@ -47,8 +83,37 @@ function filteredItems() {
   }
   if (mode === 'qualified') items = items.filter((item) => item.qualified);
   if (mode === 'rejected') items = items.filter((item) => !item.qualified);
+  items = items.filter(matchesBucketFilters);
   items.sort((a, b) => valueForSort(b, sortKey) - valueForSort(a, sortKey));
   return items;
+}
+
+function matchesBucketFilters(item) {
+  const groupedBuckets = item.win_stats?.grouped_buckets || [];
+  return GROUPED_BUCKET_LABELS.every((label, index) => {
+    const bucket = groupedBuckets.find((entry) => entry.label === label) || groupedBuckets[index] || null;
+    const activity = bucket?.total ?? 0;
+    const winRatePercent = (bucket?.win_rate ?? 0) * 100;
+    const activityMin = getNumericFilterValue(index, 'activity-min');
+    const activityMax = getNumericFilterValue(index, 'activity-max');
+    const winRateMin = getNumericFilterValue(index, 'winrate-min');
+    const winRateMax = getNumericFilterValue(index, 'winrate-max');
+
+    if (activityMin != null && activity < activityMin) return false;
+    if (activityMax != null && activity > activityMax) return false;
+    if (winRateMin != null && winRatePercent < winRateMin) return false;
+    if (winRateMax != null && winRatePercent > winRateMax) return false;
+    return true;
+  });
+}
+
+function getNumericFilterValue(bucketIndex, kind) {
+  const input = document.querySelector(`[data-bucket-index="${bucketIndex}"][data-filter-kind="${kind}"]`);
+  if (!input) return null;
+  const value = input.value.trim();
+  if (!value) return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
 }
 
 function valueForSort(item, key) {
@@ -57,7 +122,10 @@ function valueForSort(item, key) {
 }
 
 function renderList() {
-  walletList.innerHTML = filteredItems().map(renderWalletCard).join('');
+  const items = filteredItems();
+  walletList.innerHTML = items.length
+    ? items.map(renderWalletCard).join('')
+    : '<div class="panel empty-state">Filtreye uyan wallet bulunamadı.</div>';
 }
 
 function renderWalletCard(item) {
@@ -95,10 +163,18 @@ function renderGroupedBucket(bucket) {
     <div class="bucket-card ${cls}">
       <div class="bucket-label">${escapeHtml(bucket.label)}</div>
       <div class="bucket-rate">${formatPercent(bucket.win_rate)}</div>
+      <div class="muted">Activity: ${formatInt(bucket.total)}</div>
       <div class="muted">Won: ${formatInt(bucket.wins)}</div>
       <div class="muted">Lost: ${formatInt(bucket.losses)}</div>
     </div>
   `;
+}
+
+function resetBucketFilters() {
+  document.querySelectorAll('[data-bucket-index]').forEach((input) => {
+    input.value = '';
+  });
+  renderList();
 }
 
 function formatMoney(value) {
@@ -118,5 +194,9 @@ function escapeHtml(value) {
 }
 
 [searchInput, qualifiedOnly, sortSelect].forEach((el) => el.addEventListener('input', renderList));
+document.addEventListener('input', (event) => {
+  if (event.target.matches('[data-bucket-index]')) renderList();
+});
 refreshButton.addEventListener('click', load);
+resetBucketFiltersButton.addEventListener('click', resetBucketFilters);
 load().catch((error) => { console.error(error); walletList.innerHTML = '<div class="panel empty-state">Veri yüklenemedi</div>'; });
