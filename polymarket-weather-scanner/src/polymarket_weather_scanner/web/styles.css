@@ -9,13 +9,13 @@
   --good: #32d296;
   --bad: #ff7b7b;
   --border: rgba(255,255,255,0.08);
+  --favorite: #ffd24d;
 }
 * { box-sizing: border-box; }
 body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: linear-gradient(180deg, #0b1020, #0f1730); color: var(--text); }
-.page { max-width: 1500px; margin: 0 auto; padding: 32px 20px 48px; }
+.page { max-width: 1600px; margin: 0 auto; padding: 32px 20px 48px; }
 .hero, .filters, .cards { display: grid; gap: 16px; }
 .hero { grid-template-columns: 1fr auto; align-items: end; margin-bottom: 20px; }
-.wallet-hero { grid-template-columns: 1fr; }
 .eyebrow { color: var(--accent); text-transform: uppercase; letter-spacing: .08em; font-size: 12px; }
 h1 { margin: 0 0 6px; font-size: 40px; }
 h2, h3 { margin: 0; }
@@ -27,117 +27,42 @@ button { cursor: pointer; }
 .stat-card { padding: 18px; }
 .stat-label { display:block; margin-bottom: 10px; }
 .stat-value { font-size: 28px; }
+.main-layout { display:grid; grid-template-columns: 220px minmax(0, 1fr); gap: 20px; align-items: start; }
+.category-sidebar { padding: 18px; position: sticky; top: 18px; }
+.category-sidebar-header { margin-bottom: 14px; }
+.category-list { display:grid; gap: 10px; }
+.category-item { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; background: rgba(255,255,255,0.03); }
+.category-item.active { border-color: var(--accent); color: var(--accent); }
+.category-count { color: var(--muted); font-size: 12px; }
+.content-area { min-width: 0; }
 .filters { grid-template-columns: minmax(280px, 1fr) 180px 180px; padding: 18px; margin-bottom: 20px; }
 .field { display:flex; flex-direction:column; gap:8px; }
 .muted { color: var(--muted); }
 .bucket-filters { padding: 18px; margin-bottom: 20px; overflow-x: auto; }
 .bucket-filters-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom: 18px; }
-.bucket-filters-grid {
-  display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(700px, 2fr);
-  gap: 18px;
-  align-items: start;
-  min-width: 1100px;
-}
-.bucket-filter-side {
-  min-height: 1px;
-}
-.bucket-filter-side-inner {
-  padding: 0px 0 0;
-}
-.bucket-filter-side-title {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  color: var(--muted);
-  margin-bottom: 12px;
-}
-.bucket-filter-row-labels {
-  display: grid;
-  grid-template-rows: 34px 34px;
-  gap: 8px;
-  margin-top: 40px;
-}
-.bucket-filter-row-label {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  text-align: right;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text);
-  padding-right: 10px;
-  position: relative;
-  left: 10px;
-  top: -15px;
-}
-.bucket-filter-card-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(148px, 1fr));
-  gap: 12px;
-}
-.bucket-filter-card {
-  min-height: 0;
-  padding: 10px;
-  background: rgba(21, 33, 61, 0.92);
-  border-color: rgba(255,255,255,0.1);
-}
-.bucket-filter-card-body {
-  display: grid;
-  gap: 6px;
-  margin-top: 6px;
-}
-.bucket-filter-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 4px;
-}
-.bucket-max-cell {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 16px;
-  gap: 2px;
-  min-width: 0;
-}
-.bucket-max-cell .bucket-mini-input {
-  width: 100%;
-  min-width: 0;
-}
-.bucket-sort-button {
-  width: 16px;
-  min-width: 16px;
-  height: 24px;
-  padding: 0;
-  border-radius: 6px;
-  font-size: 9px;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.bucket-sort-button.active {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.bucket-mini-input {
-  width: 100%;
-  min-width: 0;
-  padding: 5px 6px;
-  text-align: center;
-  font-size: 11px;
-  line-height: 1.1;
-  border-radius: 10px;
-  appearance: textfield;
-  -moz-appearance: textfield;
-}
+.bucket-filters-grid { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(700px, 2fr); gap: 18px; align-items: start; min-width: 1100px; }
+.bucket-filter-side { min-height: 1px; }
+.bucket-filter-side-inner { padding: 0 0 0; }
+.bucket-filter-side-title { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 12px; }
+.bucket-filter-row-labels { display: grid; grid-template-rows: 34px 34px; gap: 8px; margin-top: 40px; }
+.bucket-filter-row-label { display: flex; align-items: center; justify-content: flex-end; text-align: right; font-size: 14px; font-weight: 700; color: var(--text); padding-right: 10px; position: relative; left: 10px; top: -15px; }
+.bucket-filter-card-grid { display: grid; grid-template-columns: repeat(5, minmax(148px, 1fr)); gap: 12px; }
+.bucket-filter-card { min-height: 0; padding: 10px; background: rgba(21, 33, 61, 0.92); border-color: rgba(255,255,255,0.1); }
+.bucket-filter-card-body { display: grid; gap: 6px; margin-top: 6px; }
+.bucket-filter-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px; }
+.bucket-max-cell { display: grid; grid-template-columns: minmax(0, 1fr) 16px; gap: 2px; min-width: 0; }
+.bucket-max-cell .bucket-mini-input { width: 100%; min-width: 0; }
+.bucket-sort-button { width: 16px; min-width: 16px; height: 24px; padding: 0; border-radius: 6px; font-size: 9px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+.bucket-sort-button.active { border-color: var(--accent); color: var(--accent); }
+.bucket-mini-input { width: 100%; min-width: 0; padding: 5px 6px; text-align: center; font-size: 11px; line-height: 1.1; border-radius: 10px; appearance: textfield; -moz-appearance: textfield; }
 .bucket-mini-input::-webkit-outer-spin-button,
-.bucket-mini-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
+.bucket-mini-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .wallet-list { display: grid; gap: 16px; }
 .wallet-card { display:block; color: inherit; text-decoration: none; padding: 18px; }
-.wallet-main { display:grid; grid-template-columns: minmax(280px, 1fr) minmax(700px, 2fr); gap: 18px; align-items: start; }
+.wallet-main { display:grid; grid-template-columns: minmax(320px, 1fr) minmax(700px, 2fr); gap: 18px; align-items: start; }
 .wallet-title-row { display:flex; gap:10px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
+.favorite-button { width: 30px; min-width: 30px; height: 30px; padding: 0; border-radius: 999px; font-size: 18px; line-height: 1; color: #7f8aa8; background: rgba(255,255,255,0.03); }
+.favorite-button.active { color: #1f2430; background: var(--favorite); border-color: rgba(255,210,77,0.9); }
 .wallet-metrics { display:flex; gap:14px; flex-wrap:wrap; margin-top:10px; }
 .bucket-grid { display:grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap:12px; }
 .bucket-card { border-radius: 18px; padding: 16px; border: 2px solid transparent; min-height: 120px; }
@@ -145,18 +70,15 @@ button { cursor: pointer; }
 .bucket-bad { background: rgba(76, 23, 33, 0.55); border-color: rgba(255,123,123,0.35); }
 .bucket-label { font-size: 14px; color: var(--text); margin-bottom: 8px; }
 .bucket-rate { font-size: 34px; font-weight: 800; margin-bottom: 8px; }
-.table-wrap { overflow:auto; }
-table { width:100%; border-collapse: collapse; }
-th, td { padding: 12px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; white-space: nowrap; }
-tr:hover { background: rgba(255,255,255,0.03); }
 .badge { display:inline-flex; align-items:center; padding: 4px 10px; border-radius:999px; font-size: 12px; font-weight: 700; }
 .badge.good { background: rgba(50,210,150,0.15); color: var(--good); }
 .badge.bad { background: rgba(255,123,123,0.12); color: var(--bad); }
 .address { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
-.back-link { display:inline-block; color: var(--accent); text-decoration:none; margin-bottom: 18px; }
 .detail-panel { padding: 18px; }
 .empty-state { padding: 18px; }
-@media (max-width: 1200px) {
+@media (max-width: 1280px) {
+  .main-layout { grid-template-columns: 1fr; }
+  .category-sidebar { position: static; }
   .wallet-main,
   .bucket-filters-grid { grid-template-columns: 1fr; }
   .bucket-grid,

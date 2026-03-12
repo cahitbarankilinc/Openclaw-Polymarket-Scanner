@@ -1,9 +1,13 @@
 const GROUPED_BUCKET_LABELS = ['0-15¢', '15-35¢', '35-65¢', '65-85¢', '85-100¢'];
+const CATEGORY_ORDER = ['favs', 'weather'];
+const FAVORITES_STORAGE_KEY = 'polymarket-weather-scanner:favs';
 
 const state = {
   items: [],
   summary: null,
   bucketSort: null,
+  activeCategory: 'weather',
+  favorites: new Set(loadFavorites()),
 };
 const summaryCards = document.getElementById('summaryCards');
 const summaryCardTemplate = document.getElementById('summaryCardTemplate');
@@ -14,8 +18,10 @@ const sortSelect = document.getElementById('sortSelect');
 const refreshButton = document.getElementById('refreshButton');
 const bucketFiltersGrid = document.getElementById('bucketFiltersGrid');
 const resetBucketFiltersButton = document.getElementById('resetBucketFilters');
+const categoryList = document.getElementById('categoryList');
 
 initBucketFilters();
+renderCategories();
 
 async function load() {
   const [summaryRes, resultsRes] = await Promise.all([
@@ -25,7 +31,47 @@ async function load() {
   state.summary = await summaryRes.json();
   state.items = await resultsRes.json();
   renderSummary();
+  renderCategories();
   renderList();
+}
+
+function loadFavorites() {
+  try {
+    const raw = localStorage.getItem(FAVORITES_STORAGE_KEY);
+    const items = raw ? JSON.parse(raw) : [];
+    return Array.isArray(items) ? items : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistFavorites() {
+  localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([...state.favorites]));
+}
+
+function categoryLabel(category) {
+  if (category === 'favs') return 'Favs';
+  if (category === 'weather') return 'Weather';
+  return category;
+}
+
+function categoryCount(category) {
+  if (category === 'favs') return state.items.filter((item) => state.favorites.has(item.address.toLowerCase())).length;
+  if (category === 'weather') return state.items.length;
+  return 0;
+}
+
+function renderCategories() {
+  categoryList.innerHTML = CATEGORY_ORDER.map((category) => `
+    <button
+      type="button"
+      class="category-item${state.activeCategory === category ? ' active' : ''}"
+      data-category="${category}"
+    >
+      <span>${categoryLabel(category)}</span>
+      <span class="category-count">${formatInt(categoryCount(category))}</span>
+    </button>
+  `).join('');
 }
 
 function initBucketFilters() {
@@ -144,6 +190,11 @@ function filteredItems() {
   const query = searchInput.value.trim().toLowerCase();
   const mode = qualifiedOnly.value;
   const sortKey = sortSelect.value;
+
+  if (state.activeCategory === 'favs') {
+    items = items.filter((item) => state.favorites.has(item.address.toLowerCase()));
+  }
+
   if (query) {
     items = items.filter((item) => [item.username, item.address, item.source, item.qualification_reason]
       .filter(Boolean).some((value) => String(value).toLowerCase().includes(query)));
@@ -223,18 +274,26 @@ function renderList() {
   const items = filteredItems();
   walletList.innerHTML = items.length
     ? items.map(renderWalletCard).join('')
-    : '<div class="panel empty-state">Filtreye uyan wallet bulunamadı.</div>';
+    : '<div class="panel empty-state">Bu kategoride/filtrede wallet bulunamadı.</div>';
 }
 
 function renderWalletCard(item) {
   const win = item.win_stats || {};
   const grouped = win.grouped_buckets || [];
   const statusClass = item.qualified ? 'good' : 'bad';
+  const favorite = isFavorite(item.address);
   return `
     <a class="panel wallet-card" href="/wallet/${item.address}">
       <div class="wallet-main">
         <div>
           <div class="wallet-title-row">
+            <button
+              type="button"
+              class="favorite-button${favorite ? ' active' : ''}"
+              data-favorite-address="${escapeHtml(item.address)}"
+              title="Favorilere ekle/kaldır"
+              aria-label="Favorilere ekle/kaldır"
+            >★</button>
             <strong>${escapeHtml(item.username || item.address)}</strong>
             <span class="badge ${statusClass}">${item.qualified ? 'qualified' : 'rejected'}</span>
           </div>
@@ -245,6 +304,8 @@ function renderWalletCard(item) {
             <span>Lost: ${formatInt(win.losses)}</span>
             <span>Sample: ${formatInt(win.analyzed_closed_positions)}</span>
             <span>PnL: ${formatMoney(item.pnl)}</span>
+            <span>Weather ratio: ${formatPercent(item.weather_trade_ratio)}</span>
+            <span>Markets: ${formatInt(item.distinct_markets_traded)}</span>
           </div>
         </div>
         <div class="bucket-grid">
@@ -266,6 +327,19 @@ function renderGroupedBucket(bucket) {
       <div class="muted">Lost: ${formatInt(bucket.losses)}</div>
     </div>
   `;
+}
+
+function isFavorite(address) {
+  return state.favorites.has(String(address).toLowerCase());
+}
+
+function toggleFavorite(address) {
+  const key = String(address).toLowerCase();
+  if (state.favorites.has(key)) state.favorites.delete(key);
+  else state.favorites.add(key);
+  persistFavorites();
+  renderCategories();
+  renderList();
 }
 
 function cycleBucketSort(bucketIndex, metric) {
@@ -317,6 +391,22 @@ document.addEventListener('input', (event) => {
   if (event.target.matches('[data-bucket-index]')) renderList();
 });
 document.addEventListener('click', (event) => {
+  const favoriteButton = event.target.closest('[data-favorite-address]');
+  if (favoriteButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleFavorite(favoriteButton.dataset.favoriteAddress);
+    return;
+  }
+
+  const categoryButton = event.target.closest('[data-category]');
+  if (categoryButton) {
+    state.activeCategory = categoryButton.dataset.category;
+    renderCategories();
+    renderList();
+    return;
+  }
+
   const button = event.target.closest('[data-sort-bucket-index]');
   if (!button) return;
   cycleBucketSort(Number(button.dataset.sortBucketIndex), button.dataset.sortMetric);

@@ -19,42 +19,54 @@
 
       <section class="cards" id="summaryCards"></section>
 
-      <section class="panel filters">
-        <div class="field">
-          <label for="searchInput">Ara</label>
-          <input id="searchInput" type="search" placeholder="username / address / source" />
-        </div>
-        <div class="field small">
-          <label for="qualifiedOnly">Durum</label>
-          <select id="qualifiedOnly">
-            <option value="all">Hepsi</option>
-            <option value="qualified">Sadece qualified</option>
-            <option value="rejected">Sadece rejected</option>
-          </select>
-        </div>
-        <div class="field small">
-          <label for="sortSelect">Sırala</label>
-          <select id="sortSelect">
-            <option value="win_rate">Genel win rate</option>
-            <option value="weather_trade_ratio">Weather ratio</option>
-            <option value="pnl">PnL</option>
-            <option value="distinct_markets_traded">Markets</option>
-          </select>
-        </div>
-      </section>
-
-      <section class="panel bucket-filters">
-        <div class="bucket-filters-header">
-          <div>
-            <h2>Bucket filtreleri</h2>
-            <p class="muted">Her aralık için activity (toplam sample) ve win rate min/max gir. Boş bırakırsan filtre uygulanmaz.</p>
+      <div class="main-layout">
+        <aside class="panel category-sidebar">
+          <div class="category-sidebar-header">
+            <h2>Kategoriler</h2>
+            <p class="muted">Şimdilik Favs ve Weather hazır.</p>
           </div>
-          <button id="resetBucketFilters" type="button" class="secondary-button">Bucket filtrelerini temizle</button>
-        </div>
-        <div id="bucketFiltersGrid" class="bucket-filters-grid"></div>
-      </section>
+          <nav id="categoryList" class="category-list"></nav>
+        </aside>
 
-      <section class="wallet-list" id="walletList"></section>
+        <main class="content-area">
+          <section class="panel filters">
+            <div class="field">
+              <label for="searchInput">Ara</label>
+              <input id="searchInput" type="search" placeholder="username / address / source" />
+            </div>
+            <div class="field small">
+              <label for="qualifiedOnly">Durum</label>
+              <select id="qualifiedOnly">
+                <option value="all">Hepsi</option>
+                <option value="qualified">Sadece qualified</option>
+                <option value="rejected">Sadece rejected</option>
+              </select>
+            </div>
+            <div class="field small">
+              <label for="sortSelect">Sırala</label>
+              <select id="sortSelect">
+                <option value="win_rate">Genel win rate</option>
+                <option value="weather_trade_ratio">Weather ratio</option>
+                <option value="pnl">PnL</option>
+                <option value="distinct_markets_traded">Markets</option>
+              </select>
+            </div>
+          </section>
+
+          <section class="panel bucket-filters">
+            <div class="bucket-filters-header">
+              <div>
+                <h2>Bucket filtreleri</h2>
+                <p class="muted">Her aralık için activity (toplam sample) ve win rate min/max gir. Boş bırakırsan filtre uygulanmaz.</p>
+              </div>
+              <button id="resetBucketFilters" type="button" class="secondary-button">Bucket filtrelerini temizle</button>
+            </div>
+            <div id="bucketFiltersGrid" class="bucket-filters-grid"></div>
+          </section>
+
+          <section class="wallet-list" id="walletList"></section>
+        </main>
+      </div>
     </div>
 
     <template id="summaryCardTemplate">
