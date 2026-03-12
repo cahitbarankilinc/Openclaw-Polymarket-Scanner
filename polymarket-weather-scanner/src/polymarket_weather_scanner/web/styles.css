@@ -73,29 +73,29 @@ button { cursor: pointer; }
 }
 .bucket-filter-card-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(130px, 1fr));
+  grid-template-columns: repeat(5, minmax(148px, 1fr));
   gap: 12px;
 }
 .bucket-filter-card {
   min-height: 0;
-  padding: 12px;
+  padding: 10px;
   background: rgba(21, 33, 61, 0.92);
   border-color: rgba(255,255,255,0.1);
 }
 .bucket-filter-card-body {
   display: grid;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 6px;
+  margin-top: 6px;
 }
 .bucket-filter-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 6px;
+  gap: 4px;
 }
 .bucket-max-cell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 28px;
-  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) 16px;
+  gap: 2px;
   min-width: 0;
 }
 .bucket-max-cell .bucket-mini-input {
@@ -103,12 +103,12 @@ button { cursor: pointer; }
   min-width: 0;
 }
 .bucket-sort-button {
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
+  width: 16px;
+  min-width: 16px;
+  height: 24px;
   padding: 0;
-  border-radius: 10px;
-  font-size: 14px;
+  border-radius: 6px;
+  font-size: 9px;
   line-height: 1;
   display: inline-flex;
   align-items: center;
@@ -121,9 +121,9 @@ button { cursor: pointer; }
 .bucket-mini-input {
   width: 100%;
   min-width: 0;
-  padding: 6px 8px;
+  padding: 5px 6px;
   text-align: center;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.1;
   border-radius: 10px;
   appearance: textfield;
