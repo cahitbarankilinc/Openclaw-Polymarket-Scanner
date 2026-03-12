@@ -61,6 +61,32 @@ class ScannerDatabase:
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
 
+    @staticmethod
+    def _row_payload(row: sqlite3.Row) -> dict:
+        return json.loads(row['payload_json'])
+
+    @classmethod
+    def _row_score(cls, row: sqlite3.Row) -> tuple:
+        payload = cls._row_payload(row)
+        source = str(payload.get('source') or '')
+        return (
+            1 if payload.get('qualified') else 0,
+            1 if payload.get('pnl') is not None else 0,
+            float(payload.get('pnl') or 0.0),
+            1 if payload.get('username') else 0,
+            1 if source == 'custom_wallet' else 0,
+            int(payload.get('distinct_markets_traded') or 0),
+            int(payload.get('win_stats', {}).get('analyzed_closed_positions') or 0),
+        )
+
+    @classmethod
+    def _prefer_row(cls, left: sqlite3.Row | None, right: sqlite3.Row | None) -> sqlite3.Row | None:
+        if left is None:
+            return right
+        if right is None:
+            return left
+        return left if cls._row_score(left) >= cls._row_score(right) else right
+
     def connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
@@ -138,19 +164,21 @@ class ScannerDatabase:
 
             merged: dict[str, sqlite3.Row] = {}
             for row in scan_rows:
-                merged[str(row['address']).lower()] = row
+                key = str(row['address']).lower()
+                merged[key] = self._prefer_row(merged.get(key), row)
             for row in custom_rows:
-                payload = json.loads(row['payload_json'])
+                payload = self._row_payload(row)
                 if qualified_only and not payload.get('qualified'):
                     continue
-                merged[str(row['address']).lower()] = row
+                key = str(row['address']).lower()
+                merged[key] = self._prefer_row(merged.get(key), row)
 
             rows = list(merged.values())
             rows.sort(
                 key=lambda row: (
-                    json.loads(row['payload_json']).get('qualified', False),
-                    json.loads(row['payload_json']).get('weather_trade_ratio', 0.0),
-                    json.loads(row['payload_json']).get('pnl') or 0.0,
+                    self._row_payload(row).get('qualified', False),
+                    self._row_payload(row).get('weather_trade_ratio', 0.0),
+                    self._row_payload(row).get('pnl') or 0.0,
                 ),
                 reverse=True,
             )
@@ -168,9 +196,7 @@ class ScannerDatabase:
                 ''',
                 (address,),
             ).fetchone()
-            if custom is not None:
-                return custom
-            return conn.execute(
+            scan = conn.execute(
                 '''
                 SELECT sr.*
                 FROM scan_results sr
@@ -181,6 +207,7 @@ class ScannerDatabase:
                 ''',
                 (address,),
             ).fetchone()
+            return self._prefer_row(scan, custom)
 
     def add_custom_wallet(self, address: str, label: str | None = None) -> None:
         with self.connect() as conn:

@@ -126,8 +126,8 @@ class WeatherWalletScanner:
         cents = int(value * 100)
         return max(0, min(100, cents))
 
-    def calculate_win_stats(self, candidate: CandidateWallet) -> WalletWinStats:
-        rows = self.client.closed_positions_all(candidate.address, max_items=self.config.closed_positions_limit)
+    def calculate_win_stats(self, candidate: CandidateWallet, rows: list[dict] | None = None) -> WalletWinStats:
+        rows = rows if rows is not None else self.client.closed_positions_all(candidate.address, max_items=self.config.closed_positions_limit)
         five_cent = [BucketStat(label=f'{start}-{start + 5}¢', start_cents=start, end_cents=start + 5) for start in range(0, 100, 5)]
         grouped = [BucketStat(label=label, start_cents=start, end_cents=end) for (label, start, end) in GROUPED_BUCKETS]
         wins = 0
@@ -174,8 +174,12 @@ class WeatherWalletScanner:
         weather_trade_count = sum(1 for row in trade_rows if self._matches_weather(row, weather_terms))
         last_trade_count = len(trade_rows)
         weather_trade_ratio = (weather_trade_count / last_trade_count) if last_trade_count else 0.0
-        pnl_value = None if candidate.pnl is None else float(candidate.pnl)
-        win_stats = self.calculate_win_stats(candidate)
+        closed_positions = self.client.closed_positions_all(candidate.address, max_items=self.config.closed_positions_limit)
+        pnl_value = float(candidate.pnl) if candidate.pnl is not None else sum(float(row.get('realizedPnl') or 0.0) for row in closed_positions)
+        username = candidate.username
+        if not username:
+            username = next((str(row.get('name') or row.get('pseudonym') or '').strip() for row in trade_rows if (row.get('name') or row.get('pseudonym'))), None) or None
+        win_stats = self.calculate_win_stats(candidate, rows=closed_positions)
 
         qualified = True
         reasons: list[str] = []
@@ -200,7 +204,7 @@ class WeatherWalletScanner:
 
         return WalletScanResult(
             address=candidate.address,
-            username=candidate.username,
+            username=username,
             pnl=pnl_value,
             distinct_markets_traded=distinct_markets,
             last_trade_count=last_trade_count,
