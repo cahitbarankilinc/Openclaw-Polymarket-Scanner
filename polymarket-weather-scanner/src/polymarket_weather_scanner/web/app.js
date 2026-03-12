@@ -26,39 +26,73 @@ async function load() {
 
 function initBucketFilters() {
   bucketFiltersGrid.innerHTML = `
-    <div class="bucket-filter-spacer"></div>
-    ${GROUPED_BUCKET_LABELS.map((label) => `<div class="bucket-column-title">${escapeHtml(label)}</div>`).join('')}
-    <div class="bucket-row-label">Win Rate</div>
-    ${GROUPED_BUCKET_LABELS.map((label, index) => renderBucketFilterInputs(index, label, 'winrate')).join('')}
-    <div class="bucket-row-label">Activity</div>
-    ${GROUPED_BUCKET_LABELS.map((label, index) => renderBucketFilterInputs(index, label, 'activity')).join('')}
+    <div class="bucket-filter-side">
+      <div class="bucket-filter-side-inner">
+        <div class="bucket-filter-side-title">Filtre alanı</div>
+        <div class="bucket-filter-row-labels">
+          <div class="bucket-filter-row-label">Win Rate</div>
+          <div class="bucket-filter-row-label">Activity</div>
+        </div>
+      </div>
+    </div>
+    <div class="bucket-filter-card-grid">
+      ${GROUPED_BUCKET_LABELS.map((label, index) => renderBucketFilterCard(index, label)).join('')}
+    </div>
   `;
 }
 
-function renderBucketFilterInputs(index, label, kind) {
-  const title = kind === 'winrate' ? `Win rate filtreleri ${label}` : `Activity filtreleri ${label}`;
+function renderBucketFilterCard(index, label) {
   return `
-    <div class="bucket-filter-cell" aria-label="${escapeHtml(title)}">
-      <input
-        id="bucket-${index}-${kind}-min"
-        data-bucket-index="${index}"
-        data-filter-kind="${kind}-min"
-        class="bucket-mini-input"
-        type="number"
-        min="0"
-        ${kind === 'winrate' ? 'max="100" step="0.1"' : 'step="1"'}
-        placeholder="min"
-      />
-      <input
-        id="bucket-${index}-${kind}-max"
-        data-bucket-index="${index}"
-        data-filter-kind="${kind}-max"
-        class="bucket-mini-input"
-        type="number"
-        min="0"
-        ${kind === 'winrate' ? 'max="100" step="0.1"' : 'step="1"'}
-        placeholder="max"
-      />
+    <div class="bucket-card bucket-filter-card" aria-label="${escapeHtml(label)} filtreleri">
+      <div class="bucket-label">${escapeHtml(label)}</div>
+      <div class="bucket-filter-card-body">
+        <div class="bucket-filter-row">
+          <input
+            id="bucket-${index}-winrate-min"
+            data-bucket-index="${index}"
+            data-filter-kind="winrate-min"
+            class="bucket-mini-input"
+            type="number"
+            min="0"
+            max="100"
+            step="0.1"
+            placeholder="min"
+          />
+          <input
+            id="bucket-${index}-winrate-max"
+            data-bucket-index="${index}"
+            data-filter-kind="winrate-max"
+            class="bucket-mini-input"
+            type="number"
+            min="0"
+            max="100"
+            step="0.1"
+            placeholder="max"
+          />
+        </div>
+        <div class="bucket-filter-row">
+          <input
+            id="bucket-${index}-activity-min"
+            data-bucket-index="${index}"
+            data-filter-kind="activity-min"
+            class="bucket-mini-input"
+            type="number"
+            min="0"
+            step="1"
+            placeholder="min"
+          />
+          <input
+            id="bucket-${index}-activity-max"
+            data-bucket-index="${index}"
+            data-filter-kind="activity-max"
+            class="bucket-mini-input"
+            type="number"
+            min="0"
+            step="1"
+            placeholder="max"
+          />
+        </div>
+      </div>
     </div>
   `;
 }
