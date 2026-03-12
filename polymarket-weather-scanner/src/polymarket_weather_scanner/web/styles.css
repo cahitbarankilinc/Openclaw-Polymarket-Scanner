@@ -28,13 +28,19 @@ button { cursor: pointer; }
 .stat-label { display:block; margin-bottom: 10px; }
 .stat-value { font-size: 28px; }
 .main-layout { display:grid; grid-template-columns: 220px minmax(0, 1fr); gap: 20px; align-items: start; }
-.category-sidebar { padding: 18px; position: sticky; top: 18px; }
+.category-sidebar { padding: 18px; position: sticky; top: 18px; overflow: hidden; }
 .category-sidebar-header { margin-bottom: 14px; }
-.add-wallet-box { display:grid; gap:8px; margin-bottom: 16px; }
+.add-wallet-box { display:grid; gap:8px; margin-bottom: 16px; min-width: 0; }
 .add-wallet-box label { font-size: 13px; color: var(--muted); }
-.add-wallet-status { min-height: 18px; font-size: 12px; }
-.category-list { display:grid; gap: 10px; }
-.category-item { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; background: rgba(255,255,255,0.03); }
+.add-wallet-box input,
+.add-wallet-box button {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.add-wallet-status { min-height: 18px; font-size: 12px; overflow-wrap: anywhere; }
+.category-list { display:grid; gap: 10px; min-width: 0; }
+.category-item { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; max-width: 100%; background: rgba(255,255,255,0.03); }
 .category-item.active { border-color: var(--accent); color: var(--accent); }
 .category-count { color: var(--muted); font-size: 12px; }
 .content-area { min-width: 0; }
