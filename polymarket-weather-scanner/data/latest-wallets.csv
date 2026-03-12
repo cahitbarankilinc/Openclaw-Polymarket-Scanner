@@ -1,0 +1,7 @@
+address,buy_trade_count,distinct_markets_traded,last_trade_count,pnl,qualification_reason,qualified,sell_trade_count,source,username,weather_trade_count,weather_trade_ratio
+0x594edb9112f526fa6a80b8f858a6379c8a2c1c11,478,3211,478,59111.56018810693,qualified,True,0,leaderboard:all,ColdMath,478,1.0
+0x906f2454a777600aea6c506247566decef82371a,445,2822,445,17474.120482966377,qualified,True,0,leaderboard:all,Railbird,445,1.0
+0x946945d4ccf06b7c7e2acb35aaab4ae76c6f6d18,335,1455,335,8715.826985470027,qualified,True,0,leaderboard:all,psyjonas,335,1.0
+0xa37d1d1a3367c6ebc692e37c29bccb8bb015b2b4,490,237,490,7210.556390710571,qualified,True,0,leaderboard:all,0xhana,490,1.0
+0x9e7f3c9844232a33c2a000a2ac785b6614fb44d4,393,528,393,1124.9072440470866,qualified,True,0,leaderboard:month,0x9e7f3c9844232a33c2a000a2ac785b6614fb44d4,393,1.0
+0xb40e89677d59665d5188541ad860450a6e2a7cc9,498,6547,498,24895.675764193536,qualified,True,0,leaderboard:all,Poligarch,473,0.9497991967871486
