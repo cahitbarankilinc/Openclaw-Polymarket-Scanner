@@ -56,8 +56,8 @@ Current keyword set:
 
 ```bash
 cd polymarket-weather-scanner
-python3 -m polymarket_weather_scanner scan
-python3 -m polymarket_weather_scanner report --limit 25
+PYTHONPATH=src python3 -m polymarket_weather_scanner scan
+PYTHONPATH=src python3 -m polymarket_weather_scanner report --limit 25
 ```
 
 ## Commands
@@ -65,26 +65,45 @@ python3 -m polymarket_weather_scanner report --limit 25
 ### Run a full scan
 
 ```bash
-python3 -m polymarket_weather_scanner scan
+PYTHONPATH=src python3 -m polymarket_weather_scanner scan
 ```
 
 ### Show top matches
 
 ```bash
-python3 -m polymarket_weather_scanner report --limit 20
+PYTHONPATH=src python3 -m polymarket_weather_scanner report --limit 20
 ```
 
 ### Export latest qualifying wallets to JSON
 
 ```bash
-python3 -m polymarket_weather_scanner export --format json --out data/latest-wallets.json
+PYTHONPATH=src python3 -m polymarket_weather_scanner export --format json --out data/latest-wallets.json
 ```
 
 ### Export latest qualifying wallets to CSV
 
 ```bash
-python3 -m polymarket_weather_scanner export --format csv --out data/latest-wallets.csv
+PYTHONPATH=src python3 -m polymarket_weather_scanner export --format csv --out data/latest-wallets.csv
 ```
+
+### Open local frontend
+
+```bash
+PYTHONPATH=src python3 -m polymarket_weather_scanner serve --host 127.0.0.1 --port 8765
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8765
+```
+
+The frontend reads the latest scan results from `data/scanner.db` and gives you:
+
+- summary cards
+- search/filter/sort controls
+- a browsable results table
+- lightweight JSON API endpoints at `/api/results` and `/api/summary`
 
 ## Notes
 

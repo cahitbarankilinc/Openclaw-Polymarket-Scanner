@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Polymarket Weather Scanner</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Local frontend</p>
+          <h1>Polymarket Weather Scanner</h1>
+          <p class="muted">Son scan sonuçlarını filtreleyip hızlıca gez.</p>
+        </div>
+        <button id="refreshButton">Yenile</button>
+      </header>
+
+      <section class="cards" id="summaryCards"></section>
+
+      <section class="panel filters">
+        <div class="field">
+          <label for="searchInput">Ara</label>
+          <input id="searchInput" type="search" placeholder="username / address / source" />
+        </div>
+        <div class="field small">
+          <label for="qualifiedOnly">Durum</label>
+          <select id="qualifiedOnly">
+            <option value="all">Hepsi</option>
+            <option value="qualified">Sadece qualified</option>
+            <option value="rejected">Sadece rejected</option>
+          </select>
+        </div>
+        <div class="field small">
+          <label for="sortSelect">Sırala</label>
+          <select id="sortSelect">
+            <option value="weather_trade_ratio">Weather ratio</option>
+            <option value="pnl">PnL</option>
+            <option value="distinct_markets_traded">Markets</option>
+            <option value="buy_trade_count">Buys</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="panel table-panel">
+        <div class="table-meta">
+          <strong id="resultCount">0 sonuç</strong>
+          <span class="muted" id="sourceList"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Address</th>
+                <th>PnL</th>
+                <th>Markets</th>
+                <th>Buys</th>
+                <th>Sells</th>
+                <th>Weather</th>
+                <th>Ratio</th>
+                <th>Status</th>
+                <th>Reason</th>
+              </tr>
+            </thead>
+            <tbody id="resultsBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <template id="summaryCardTemplate">
+      <article class="panel stat-card">
+        <span class="muted stat-label"></span>
+        <strong class="stat-value"></strong>
+      </article>
+    </template>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

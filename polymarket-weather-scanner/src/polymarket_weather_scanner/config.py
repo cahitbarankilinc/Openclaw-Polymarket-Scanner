@@ -4,6 +4,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
+APP_DIR = Path(__file__).resolve().parents[2]
+
+
 @dataclass(frozen=True)
 class ScannerConfig:
     gamma_base: str = 'https://gamma-api.polymarket.com'

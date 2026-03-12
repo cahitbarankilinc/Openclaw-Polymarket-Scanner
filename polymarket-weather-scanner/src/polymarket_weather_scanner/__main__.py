@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 from .scanner import WeatherWalletScanner
+from .web import serve
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -21,6 +22,10 @@ def build_parser() -> argparse.ArgumentParser:
     export.add_argument('--out', required=True)
     export.add_argument('--limit', type=int, default=100)
     export.add_argument('--qualified-only', action='store_true', default=True)
+
+    serve_parser = sub.add_parser('serve', help='run local frontend server')
+    serve_parser.add_argument('--host', default='127.0.0.1')
+    serve_parser.add_argument('--port', type=int, default=8765)
 
     return parser
 
@@ -53,6 +58,10 @@ def main() -> int:
     if args.command == 'export':
         path = scanner.export(Path(args.out), fmt=args.format, qualified_only=args.qualified_only, limit=args.limit)
         print(f'exported to {path}')
+        return 0
+
+    if args.command == 'serve':
+        serve(host=args.host, port=args.port)
         return 0
 
     parser.error('unknown command')
