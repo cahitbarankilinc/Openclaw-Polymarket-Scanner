@@ -43,22 +43,22 @@ button { cursor: pointer; }
   min-height: 1px;
 }
 .bucket-filter-side-inner {
-  padding: 6px 0;
+  padding: 12px 0 0;
 }
 .bucket-filter-side-title {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: .08em;
   color: var(--muted);
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 .bucket-filter-row-labels {
   display: grid;
-  gap: 12px;
-  margin-top: 30px;
+  grid-template-rows: 34px 34px;
+  gap: 8px;
+  margin-top: 40px;
 }
 .bucket-filter-row-label {
-  min-height: 64px;
   display: flex;
   align-items: center;
   font-size: 14px;
