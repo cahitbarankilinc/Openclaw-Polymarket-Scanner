@@ -1,6 +1,10 @@
 const GROUPED_BUCKET_LABELS = ['0-15¢', '15-35¢', '35-65¢', '65-85¢', '85-100¢'];
 
-const state = { items: [], summary: null };
+const state = {
+  items: [],
+  summary: null,
+  bucketSort: null,
+};
 const summaryCards = document.getElementById('summaryCards');
 const summaryCardTemplate = document.getElementById('summaryCardTemplate');
 const walletList = document.getElementById('walletList');
@@ -42,6 +46,8 @@ function initBucketFilters() {
 }
 
 function renderBucketFilterCard(index, label) {
+  const winrateSortState = getBucketSortState(index, 'winrate');
+  const activitySortState = getBucketSortState(index, 'activity');
   return `
     <div class="bucket-card bucket-filter-card" aria-label="${escapeHtml(label)} filtreleri">
       <div class="bucket-label">${escapeHtml(label)}</div>
@@ -58,17 +64,26 @@ function renderBucketFilterCard(index, label) {
             step="0.1"
             placeholder="min"
           />
-          <input
-            id="bucket-${index}-winrate-max"
-            data-bucket-index="${index}"
-            data-filter-kind="winrate-max"
-            class="bucket-mini-input"
-            type="number"
-            min="0"
-            max="100"
-            step="0.1"
-            placeholder="max"
-          />
+          <div class="bucket-max-cell">
+            <input
+              id="bucket-${index}-winrate-max"
+              data-bucket-index="${index}"
+              data-filter-kind="winrate-max"
+              class="bucket-mini-input"
+              type="number"
+              min="0"
+              max="100"
+              step="0.1"
+              placeholder="max"
+            />
+            <button
+              type="button"
+              class="bucket-sort-button${winrateSortState ? ' active' : ''}"
+              data-sort-bucket-index="${index}"
+              data-sort-metric="winrate"
+              title="Win rate sıralama"
+            >${sortButtonLabel(winrateSortState)}</button>
+          </div>
         </div>
         <div class="bucket-filter-row">
           <input
@@ -81,16 +96,25 @@ function renderBucketFilterCard(index, label) {
             step="1"
             placeholder="min"
           />
-          <input
-            id="bucket-${index}-activity-max"
-            data-bucket-index="${index}"
-            data-filter-kind="activity-max"
-            class="bucket-mini-input"
-            type="number"
-            min="0"
-            step="1"
-            placeholder="max"
-          />
+          <div class="bucket-max-cell">
+            <input
+              id="bucket-${index}-activity-max"
+              data-bucket-index="${index}"
+              data-filter-kind="activity-max"
+              class="bucket-mini-input"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="max"
+            />
+            <button
+              type="button"
+              class="bucket-sort-button${activitySortState ? ' active' : ''}"
+              data-sort-bucket-index="${index}"
+              data-sort-metric="activity"
+              title="Activity sıralama"
+            >${sortButtonLabel(activitySortState)}</button>
+          </div>
         </div>
       </div>
     </div>
@@ -127,7 +151,7 @@ function filteredItems() {
   if (mode === 'qualified') items = items.filter((item) => item.qualified);
   if (mode === 'rejected') items = items.filter((item) => !item.qualified);
   items = items.filter(matchesBucketFilters);
-  items.sort((a, b) => valueForSort(b, sortKey) - valueForSort(a, sortKey));
+  items.sort((a, b) => compareItems(a, b, sortKey));
   return items;
 }
 
@@ -159,9 +183,40 @@ function getNumericFilterValue(bucketIndex, kind) {
   return Number.isFinite(num) ? num : null;
 }
 
-function valueForSort(item, key) {
-  if (key === 'win_rate') return item.win_stats?.win_rate ?? 0;
-  return item[key] ?? 0;
+function getBucketSortState(bucketIndex, metric) {
+  return state.bucketSort && state.bucketSort.bucketIndex === bucketIndex && state.bucketSort.metric === metric
+    ? state.bucketSort.direction
+    : null;
+}
+
+function sortButtonLabel(direction) {
+  if (direction === 'desc') return '↓';
+  if (direction === 'asc') return '↑';
+  return '↕';
+}
+
+function getGroupedBucket(item, bucketIndex) {
+  const groupedBuckets = item.win_stats?.grouped_buckets || [];
+  return groupedBuckets.find((entry) => entry.label === GROUPED_BUCKET_LABELS[bucketIndex]) || groupedBuckets[bucketIndex] || null;
+}
+
+function bucketMetricValue(item, bucketIndex, metric) {
+  const bucket = getGroupedBucket(item, bucketIndex);
+  if (!bucket) return 0;
+  if (metric === 'winrate') return bucket.win_rate ?? 0;
+  if (metric === 'activity') return bucket.total ?? 0;
+  return 0;
+}
+
+function compareItems(a, b, key) {
+  if (state.bucketSort) {
+    const av = bucketMetricValue(a, state.bucketSort.bucketIndex, state.bucketSort.metric);
+    const bv = bucketMetricValue(b, state.bucketSort.bucketIndex, state.bucketSort.metric);
+    return state.bucketSort.direction === 'asc' ? av - bv : bv - av;
+  }
+  const av = key === 'win_rate' ? (a.win_stats?.win_rate ?? 0) : (a[key] ?? 0);
+  const bv = key === 'win_rate' ? (b.win_stats?.win_rate ?? 0) : (b[key] ?? 0);
+  return bv - av;
 }
 
 function renderList() {
@@ -213,6 +268,27 @@ function renderGroupedBucket(bucket) {
   `;
 }
 
+function cycleBucketSort(bucketIndex, metric) {
+  const current = getBucketSortState(bucketIndex, metric);
+  let next = 'desc';
+  if (current === 'desc') next = 'asc';
+  else if (current === 'asc') next = null;
+
+  state.bucketSort = next ? { bucketIndex, metric, direction: next } : null;
+  updateBucketSortButtons();
+  renderList();
+}
+
+function updateBucketSortButtons() {
+  document.querySelectorAll('[data-sort-bucket-index]').forEach((button) => {
+    const bucketIndex = Number(button.dataset.sortBucketIndex);
+    const metric = button.dataset.sortMetric;
+    const direction = getBucketSortState(bucketIndex, metric);
+    button.textContent = sortButtonLabel(direction);
+    button.classList.toggle('active', Boolean(direction));
+  });
+}
+
 function resetBucketFilters() {
   document.querySelectorAll('[data-bucket-index]').forEach((input) => {
     input.value = '';
@@ -239,6 +315,11 @@ function escapeHtml(value) {
 [searchInput, qualifiedOnly, sortSelect].forEach((el) => el.addEventListener('input', renderList));
 document.addEventListener('input', (event) => {
   if (event.target.matches('[data-bucket-index]')) renderList();
+});
+document.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-sort-bucket-index]');
+  if (!button) return;
+  cycleBucketSort(Number(button.dataset.sortBucketIndex), button.dataset.sortMetric);
 });
 refreshButton.addEventListener('click', load);
 resetBucketFiltersButton.addEventListener('click', resetBucketFilters);

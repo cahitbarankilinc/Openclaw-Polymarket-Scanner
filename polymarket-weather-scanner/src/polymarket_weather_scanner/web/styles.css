@@ -43,7 +43,7 @@ button { cursor: pointer; }
   min-height: 1px;
 }
 .bucket-filter-side-inner {
-  padding: 12px 0 0;
+  padding: 0px 0 0;
 }
 .bucket-filter-side-title {
   font-size: 12px;
@@ -67,6 +67,9 @@ button { cursor: pointer; }
   font-weight: 700;
   color: var(--text);
   padding-right: 10px;
+  position: relative;
+  left: 10px;
+  top: -15px;
 }
 .bucket-filter-card-grid {
   display: grid;
@@ -87,6 +90,26 @@ button { cursor: pointer; }
 .bucket-filter-row {
   display: flex;
   gap: 6px;
+}
+.bucket-max-cell {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+.bucket-max-cell .bucket-mini-input {
+  flex: 1;
+}
+.bucket-sort-button {
+  width: 28px;
+  min-width: 28px;
+  padding: 0;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1;
+}
+.bucket-sort-button.active {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .bucket-mini-input {
   width: 100%;
