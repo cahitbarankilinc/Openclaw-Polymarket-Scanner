@@ -34,34 +34,47 @@ button { cursor: pointer; }
 .bucket-filters-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom: 18px; }
 .bucket-filters-grid {
   display: grid;
-  grid-template-columns: 110px repeat(5, minmax(130px, 1fr));
-  gap: 10px 12px;
+  grid-template-columns: 92px repeat(5, minmax(124px, 124px));
+  gap: 8px 14px;
   align-items: center;
-  min-width: 820px;
+  min-width: 840px;
+  width: max-content;
+  margin-left: clamp(210px, 19vw, 360px);
 }
 .bucket-filter-spacer { min-height: 1px; }
 .bucket-column-title {
   text-align: center;
   font-weight: 700;
   color: var(--text);
-  padding-bottom: 4px;
+  padding-bottom: 2px;
+  font-size: 13px;
 }
 .bucket-row-label {
   font-weight: 700;
   color: var(--text);
-  padding-right: 8px;
+  padding-right: 6px;
+  font-size: 13px;
 }
 .bucket-filter-cell {
   display: flex;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
 }
 .bucket-mini-input {
-  width: 72px;
-  min-width: 72px;
-  max-width: 72px;
-  padding: 10px 10px;
+  width: 54px;
+  min-width: 54px;
+  max-width: 54px;
+  padding: 8px 8px;
   text-align: center;
+  font-size: 13px;
+  line-height: 1.1;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.bucket-mini-input::-webkit-outer-spin-button,
+.bucket-mini-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 .wallet-list { display: grid; gap: 16px; }
 .wallet-card { display:block; color: inherit; text-decoration: none; padding: 18px; }
@@ -88,6 +101,7 @@ tr:hover { background: rgba(255,255,255,0.03); }
 @media (max-width: 1200px) {
   .wallet-main { grid-template-columns: 1fr; }
   .bucket-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .bucket-filters-grid { margin-left: 0; }
 }
 @media (max-width: 860px) {
   .hero { grid-template-columns: 1fr; }
