@@ -25,32 +25,41 @@ async function load() {
 }
 
 function initBucketFilters() {
-  bucketFiltersGrid.innerHTML = GROUPED_BUCKET_LABELS.map((label, index) => renderBucketFilterPanel(label, index)).join('');
+  bucketFiltersGrid.innerHTML = `
+    <div class="bucket-filter-spacer"></div>
+    ${GROUPED_BUCKET_LABELS.map((label) => `<div class="bucket-column-title">${escapeHtml(label)}</div>`).join('')}
+    <div class="bucket-row-label">Win Rate</div>
+    ${GROUPED_BUCKET_LABELS.map((label, index) => renderBucketFilterInputs(index, label, 'winrate')).join('')}
+    <div class="bucket-row-label">Activity</div>
+    ${GROUPED_BUCKET_LABELS.map((label, index) => renderBucketFilterInputs(index, label, 'activity')).join('')}
+  `;
 }
 
-function renderBucketFilterPanel(label, index) {
+function renderBucketFilterInputs(index, label, kind) {
+  const title = kind === 'winrate' ? `Win rate filtreleri ${label}` : `Activity filtreleri ${label}`;
   return `
-    <article class="bucket-filter-panel">
-      <h3>${escapeHtml(label)}</h3>
-      <div class="bucket-filter-fields">
-        <div class="field">
-          <label for="bucket-${index}-activity-min">Min activity</label>
-          <input id="bucket-${index}-activity-min" data-bucket-index="${index}" data-filter-kind="activity-min" type="number" min="0" step="1" placeholder="örn. 20" />
-        </div>
-        <div class="field">
-          <label for="bucket-${index}-activity-max">Max activity</label>
-          <input id="bucket-${index}-activity-max" data-bucket-index="${index}" data-filter-kind="activity-max" type="number" min="0" step="1" placeholder="örn. 200" />
-        </div>
-        <div class="field">
-          <label for="bucket-${index}-winrate-min">Min win rate %</label>
-          <input id="bucket-${index}-winrate-min" data-bucket-index="${index}" data-filter-kind="winrate-min" type="number" min="0" max="100" step="0.1" placeholder="örn. 55" />
-        </div>
-        <div class="field">
-          <label for="bucket-${index}-winrate-max">Max win rate %</label>
-          <input id="bucket-${index}-winrate-max" data-bucket-index="${index}" data-filter-kind="winrate-max" type="number" min="0" max="100" step="0.1" placeholder="örn. 90" />
-        </div>
-      </div>
-    </article>
+    <div class="bucket-filter-cell" aria-label="${escapeHtml(title)}">
+      <input
+        id="bucket-${index}-${kind}-min"
+        data-bucket-index="${index}"
+        data-filter-kind="${kind}-min"
+        class="bucket-mini-input"
+        type="number"
+        min="0"
+        ${kind === 'winrate' ? 'max="100" step="0.1"' : 'step="1"'}
+        placeholder="min"
+      />
+      <input
+        id="bucket-${index}-${kind}-max"
+        data-bucket-index="${index}"
+        data-filter-kind="${kind}-max"
+        class="bucket-mini-input"
+        type="number"
+        min="0"
+        ${kind === 'winrate' ? 'max="100" step="0.1"' : 'step="1"'}
+        placeholder="max"
+      />
+    </div>
   `;
 }
 
