@@ -88,24 +88,31 @@ button { cursor: pointer; }
   margin-top: 8px;
 }
 .bucket-filter-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 6px;
 }
 .bucket-max-cell {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
   gap: 4px;
-  flex: 1;
+  min-width: 0;
 }
 .bucket-max-cell .bucket-mini-input {
-  flex: 1;
+  width: 100%;
+  min-width: 0;
 }
 .bucket-sort-button {
   width: 28px;
   min-width: 28px;
+  height: 28px;
   padding: 0;
   border-radius: 10px;
   font-size: 14px;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .bucket-sort-button.active {
   border-color: var(--accent);
