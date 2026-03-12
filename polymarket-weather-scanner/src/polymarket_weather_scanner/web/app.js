@@ -16,6 +16,7 @@ const searchInput = document.getElementById('searchInput');
 const qualifiedOnly = document.getElementById('qualifiedOnly');
 const sortSelect = document.getElementById('sortSelect');
 const refreshButton = document.getElementById('refreshButton');
+const refreshProgress = document.getElementById('refreshProgress');
 const bucketFiltersGrid = document.getElementById('bucketFiltersGrid');
 const resetBucketFiltersButton = document.getElementById('resetBucketFilters');
 const categoryList = document.getElementById('categoryList');
@@ -26,16 +27,29 @@ const addWalletStatus = document.getElementById('addWalletStatus');
 initBucketFilters();
 renderCategories();
 
+function setRefreshProgress(value, text = '') {
+  refreshProgress.textContent = text || (value > 0 && value < 100 ? `%${value}` : '');
+}
+
 async function load() {
-  const [summaryRes, resultsRes] = await Promise.all([
-    fetch('/api/summary'),
-    fetch('/api/results?limit=500'),
-  ]);
-  state.summary = await summaryRes.json();
-  state.items = await resultsRes.json();
-  renderSummary();
-  renderCategories();
-  renderList();
+  refreshButton.disabled = true;
+  try {
+    setRefreshProgress(10);
+    const summaryRes = await fetch('/api/summary');
+    setRefreshProgress(45);
+    const resultsRes = await fetch('/api/results?limit=500');
+    setRefreshProgress(75);
+    state.summary = await summaryRes.json();
+    setRefreshProgress(88);
+    state.items = await resultsRes.json();
+    renderSummary();
+    renderCategories();
+    renderList();
+    setRefreshProgress(100, '%100');
+    setTimeout(() => setRefreshProgress(0, ''), 600);
+  } finally {
+    refreshButton.disabled = false;
+  }
 }
 
 function loadFavorites() {

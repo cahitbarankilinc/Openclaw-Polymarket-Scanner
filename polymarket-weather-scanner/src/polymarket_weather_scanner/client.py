@@ -80,3 +80,6 @@ class PolymarketClient:
         if event_id is not None:
             params['eventId'] = event_id
         return self.data_get('/trades', **params)
+
+    def positions(self, user: str, limit: int = 500, offset: int = 0) -> list[dict[str, Any]]:
+        return self.data_get('/positions', user=user, limit=limit, offset=offset)

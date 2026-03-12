@@ -175,7 +175,23 @@ class WeatherWalletScanner:
         last_trade_count = len(trade_rows)
         weather_trade_ratio = (weather_trade_count / last_trade_count) if last_trade_count else 0.0
         closed_positions = self.client.closed_positions_all(candidate.address, max_items=self.config.closed_positions_limit)
-        pnl_value = float(candidate.pnl) if candidate.pnl is not None else sum(float(row.get('realizedPnl') or 0.0) for row in closed_positions)
+        open_positions: list[dict] = []
+        try:
+            open_positions = self.client.positions(candidate.address, limit=500)
+        except Exception:
+            open_positions = []
+
+        realized_pnl = sum(float(row.get('realizedPnl') or 0.0) for row in closed_positions)
+        open_cash_pnl = sum(float(row.get('cashPnl') or 0.0) for row in open_positions)
+        if candidate.pnl is not None:
+            pnl_value = float(candidate.pnl)
+        elif closed_positions:
+            pnl_value = realized_pnl
+        elif open_positions:
+            pnl_value = open_cash_pnl
+        else:
+            pnl_value = 0.0
+
         username = candidate.username
         if not username:
             username = next((str(row.get('name') or row.get('pseudonym') or '').strip() for row in trade_rows if (row.get('name') or row.get('pseudonym'))), None) or None
