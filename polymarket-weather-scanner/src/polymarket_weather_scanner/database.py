@@ -106,3 +106,24 @@ class ScannerDatabase:
                 (limit,),
             ).fetchall()
             return rows
+
+    def latest_result_by_address(self, address: str) -> sqlite3.Row | None:
+        with self.connect() as conn:
+            return conn.execute(
+                '''
+                SELECT sr.*
+                FROM scan_results sr
+                WHERE sr.scan_id = (SELECT MAX(id) FROM scans)
+                  AND lower(sr.address) = lower(?)
+                ORDER BY sr.id DESC
+                LIMIT 1
+                ''',
+                (address,),
+            ).fetchone()
+
+    def update_payload_json(self, row_id: int, payload: dict) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                'UPDATE scan_results SET payload_json = ? WHERE id = ?',
+                (json.dumps(payload, ensure_ascii=False, sort_keys=True), row_id),
+            )

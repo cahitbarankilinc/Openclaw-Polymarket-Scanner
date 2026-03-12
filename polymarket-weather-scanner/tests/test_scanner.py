@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 
 from polymarket_weather_scanner.config import ScannerConfig
+from polymarket_weather_scanner.models import CandidateWallet
 from polymarket_weather_scanner.scanner import WeatherWalletScanner
 
 
@@ -41,6 +42,27 @@ class ScannerTests(unittest.TestCase):
             out = root / 'empty.csv'
             scanner.export(out, fmt='csv', qualified_only=True, limit=1)
             self.assertTrue(out.exists())
+
+    def test_calculate_win_stats_groups_and_five_cent_buckets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            scanner = StubScanner(Path(tmp))
+            scanner.client.closed_positions_all = lambda user, max_items=500: [
+                {'avgPrice': 0.02, 'realizedPnl': 10},
+                {'avgPrice': 0.07, 'realizedPnl': 5},
+                {'avgPrice': 0.17, 'realizedPnl': -1},
+                {'avgPrice': 0.66, 'realizedPnl': 1},
+                {'avgPrice': 0.92, 'realizedPnl': 0},
+            ]
+            stats = scanner.calculate_win_stats(CandidateWallet(address='0xabc'))
+            self.assertEqual(stats.analyzed_closed_positions, 5)
+            self.assertEqual(stats.wins, 3)
+            self.assertEqual(stats.losses, 2)
+            self.assertAlmostEqual(stats.win_rate, 0.6)
+            grouped = {bucket['label']: bucket for bucket in stats.grouped_buckets}
+            self.assertEqual(grouped['0-15¢']['wins'], 2)
+            self.assertEqual(grouped['15-35¢']['losses'], 1)
+            self.assertEqual(grouped['65-85¢']['wins'], 1)
+            self.assertEqual(grouped['85-100¢']['losses'], 1)
 
 
 if __name__ == '__main__':

@@ -12,7 +12,7 @@
         <div>
           <p class="eyebrow">Local frontend</p>
           <h1>Polymarket Weather Scanner</h1>
-          <p class="muted">Son scan sonuçlarını filtreleyip hızlıca gez.</p>
+          <p class="muted">Wallet listesi + genel win rate + büyük bucket görünümü.</p>
         </div>
         <button id="refreshButton">Yenile</button>
       </header>
@@ -35,39 +35,15 @@
         <div class="field small">
           <label for="sortSelect">Sırala</label>
           <select id="sortSelect">
+            <option value="win_rate">Genel win rate</option>
             <option value="weather_trade_ratio">Weather ratio</option>
             <option value="pnl">PnL</option>
             <option value="distinct_markets_traded">Markets</option>
-            <option value="buy_trade_count">Buys</option>
           </select>
         </div>
       </section>
 
-      <section class="panel table-panel">
-        <div class="table-meta">
-          <strong id="resultCount">0 sonuç</strong>
-          <span class="muted" id="sourceList"></span>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>User</th>
-                <th>Address</th>
-                <th>PnL</th>
-                <th>Markets</th>
-                <th>Buys</th>
-                <th>Sells</th>
-                <th>Weather</th>
-                <th>Ratio</th>
-                <th>Status</th>
-                <th>Reason</th>
-              </tr>
-            </thead>
-            <tbody id="resultsBody"></tbody>
-          </table>
-        </div>
-      </section>
+      <section class="wallet-list" id="walletList"></section>
     </div>
 
     <template id="summaryCardTemplate">

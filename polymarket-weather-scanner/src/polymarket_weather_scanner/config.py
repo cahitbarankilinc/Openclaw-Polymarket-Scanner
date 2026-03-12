@@ -16,6 +16,7 @@ class ScannerConfig:
     leaderboard_limit: int = 50
     leaderboard_offsets: tuple[int, ...] = (0, 50, 100)
     activity_limit: int = 500
+    closed_positions_limit: int = 500
     max_workers: int = 8
     enable_event_trade_seeding: bool = False
     seed_event_trade_limit: int = 100

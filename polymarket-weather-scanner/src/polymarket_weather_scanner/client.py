@@ -54,8 +54,21 @@ class PolymarketClient:
         payload = self.data_get('/traded', user=user)
         return int(payload.get('traded', 0))
 
-    def closed_positions(self, user: str, limit: int = 50, offset: int = 0, sort_by: str = 'REALIZEDPNL') -> list[dict[str, Any]]:
+    def closed_positions(self, user: str, limit: int = 50, offset: int = 0, sort_by: str = 'TIMESTAMP') -> list[dict[str, Any]]:
         return self.data_get('/closed-positions', user=user, limit=limit, offset=offset, sortBy=sort_by, sortDirection='DESC')
+
+    def closed_positions_all(self, user: str, max_items: int = 500, page_size: int = 50, sort_by: str = 'TIMESTAMP') -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        offset = 0
+        while len(rows) < max_items:
+            batch = self.closed_positions(user=user, limit=min(page_size, max_items - len(rows)), offset=offset, sort_by=sort_by)
+            if not batch:
+                break
+            rows.extend(batch)
+            if len(batch) < min(page_size, max_items - (len(rows) - len(batch))):
+                break
+            offset += len(batch)
+        return rows
 
     def public_search(self, query: str, limit_per_type: int = 25, page: int = 1) -> dict[str, Any]:
         return self.gamma_get('/public-search', q=query, limit_per_type=limit_per_type, page=page, search_profiles='false', search_tags='false', optimized='true')

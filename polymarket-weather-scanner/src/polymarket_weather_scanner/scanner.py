@@ -8,7 +8,16 @@ from pathlib import Path
 from .client import PolymarketClient
 from .config import ScannerConfig
 from .database import ScannerDatabase
-from .models import CandidateWallet, WalletScanResult
+from .models import BucketStat, CandidateWallet, WalletScanResult, WalletWinStats
+
+
+GROUPED_BUCKETS = [
+    ('0-15¢', 0, 15),
+    ('15-35¢', 15, 35),
+    ('35-65¢', 35, 65),
+    ('65-85¢', 65, 85),
+    ('85-100¢', 85, 101),
+]
 
 
 class WeatherWalletScanner:
@@ -99,6 +108,51 @@ class WeatherWalletScanner:
         ]
         return any(term in hay for hay in haystacks for term in weather_terms if term)
 
+    @staticmethod
+    def _price_to_cents(price: float | int | str | None) -> int:
+        value = float(price or 0.0)
+        cents = int(value * 100)
+        return max(0, min(100, cents))
+
+    def calculate_win_stats(self, candidate: CandidateWallet) -> WalletWinStats:
+        rows = self.client.closed_positions_all(candidate.address, max_items=self.config.closed_positions_limit)
+        five_cent = [BucketStat(label=f'{start}-{start + 5}¢', start_cents=start, end_cents=start + 5) for start in range(0, 100, 5)]
+        grouped = [BucketStat(label=label, start_cents=start, end_cents=end) for (label, start, end) in GROUPED_BUCKETS]
+        wins = 0
+        losses = 0
+
+        for row in rows:
+            cents = self._price_to_cents(row.get('avgPrice'))
+            bucket_index = min(cents // 5, len(five_cent) - 1)
+            is_win = float(row.get('realizedPnl') or 0.0) > 0.0
+            target = five_cent[bucket_index]
+            target.total += 1
+            if is_win:
+                target.wins += 1
+                wins += 1
+            else:
+                target.losses += 1
+                losses += 1
+
+            for group in grouped:
+                if group.start_cents <= cents < group.end_cents:
+                    group.total += 1
+                    if is_win:
+                        group.wins += 1
+                    else:
+                        group.losses += 1
+                    break
+
+        total = wins + losses
+        return WalletWinStats(
+            analyzed_closed_positions=total,
+            wins=wins,
+            losses=losses,
+            win_rate=(wins / total) if total else 0.0,
+            grouped_buckets=[bucket.to_dict() for bucket in grouped],
+            five_cent_buckets=[bucket.to_dict() for bucket in five_cent],
+        )
+
     def evaluate_candidate(self, candidate: CandidateWallet, weather_terms: set[str]) -> WalletScanResult:
         distinct_markets = self.client.total_markets_traded(candidate.address)
         activity = self.client.user_activity(candidate.address, limit=self.config.activity_limit)
@@ -109,6 +163,7 @@ class WeatherWalletScanner:
         last_trade_count = len(trade_rows)
         weather_trade_ratio = (weather_trade_count / last_trade_count) if last_trade_count else 0.0
         pnl_value = None if candidate.pnl is None else float(candidate.pnl)
+        win_stats = self.calculate_win_stats(candidate)
 
         qualified = True
         reasons: list[str] = []
@@ -144,6 +199,7 @@ class WeatherWalletScanner:
             qualified=qualified,
             qualification_reason='qualified' if qualified else ','.join(reasons),
             source=candidate.source,
+            win_stats=win_stats.to_dict(),
         )
 
     def scan(self) -> list[WalletScanResult]:
@@ -160,6 +216,12 @@ class WeatherWalletScanner:
 
     def latest_results(self, qualified_only: bool = False, limit: int = 100) -> list[dict]:
         return [json.loads(row['payload_json']) for row in self.db.latest_results(qualified_only=qualified_only, limit=limit)]
+
+    def latest_result_by_address(self, address: str) -> dict | None:
+        row = self.db.latest_result_by_address(address)
+        if row is None:
+            return None
+        return json.loads(row['payload_json'])
 
     def export(self, out_path: Path, fmt: str = 'json', qualified_only: bool = True, limit: int = 100) -> Path:
         rows = self.latest_results(qualified_only=qualified_only, limit=limit)
