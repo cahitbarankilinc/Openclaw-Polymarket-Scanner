@@ -282,6 +282,7 @@ function renderWalletCard(item) {
   const grouped = win.grouped_buckets || [];
   const statusClass = item.qualified ? 'good' : 'bad';
   const favorite = isFavorite(item.address);
+  const rejectedReason = !item.qualified ? (item.qualification_reason || 'No rejection reason available') : '';
   return `
     <a class="panel wallet-card" href="/wallet/${item.address}">
       <div class="wallet-main">
@@ -295,7 +296,7 @@ function renderWalletCard(item) {
               aria-label="Favorilere ekle/kaldır"
             >★</button>
             <strong>${escapeHtml(item.username || item.address)}</strong>
-            <span class="badge ${statusClass}">${item.qualified ? 'qualified' : 'rejected'}</span>
+            <span class="badge ${statusClass}"${!item.qualified ? ` data-tooltip="${escapeHtml(rejectedReason)}" title="${escapeHtml(rejectedReason)}"` : ''}>${item.qualified ? 'qualified' : 'rejected'}</span>
           </div>
           <div class="address">${escapeHtml(item.address)}</div>
           <div class="wallet-metrics muted">

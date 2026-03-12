@@ -73,6 +73,36 @@ button { cursor: pointer; }
 .badge { display:inline-flex; align-items:center; padding: 4px 10px; border-radius:999px; font-size: 12px; font-weight: 700; }
 .badge.good { background: rgba(50,210,150,0.15); color: var(--good); }
 .badge.bad { background: rgba(255,123,123,0.12); color: var(--bad); }
+.badge[data-tooltip] {
+  position: relative;
+}
+.badge[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  min-width: 180px;
+  max-width: 320px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(8, 12, 24, 0.96);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-transform: none;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  z-index: 20;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.35);
+}
+.badge[data-tooltip]:hover::after {
+  opacity: 1;
+}
 .address { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 .detail-panel { padding: 18px; }
 .empty-state { padding: 18px; }
