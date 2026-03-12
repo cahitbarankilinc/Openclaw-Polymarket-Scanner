@@ -96,6 +96,18 @@ class WeatherWalletScanner:
                         source=f'event_trades:{event_id}',
                         verified_badge=None,
                     )
+
+        for address in self.db.list_custom_wallets():
+            if address in candidates:
+                continue
+            candidates[address] = CandidateWallet(
+                address=address,
+                username=None,
+                pnl=None,
+                volume=None,
+                source='custom_wallet',
+                verified_badge=None,
+            )
         return candidates
 
     @staticmethod
@@ -213,6 +225,15 @@ class WeatherWalletScanner:
         scan_id = self.db.create_scan()
         self.db.save_results(scan_id, results)
         return sorted(results, key=lambda item: (item.qualified, item.weather_trade_ratio, item.pnl or 0.0), reverse=True)
+
+    def analyze_wallet(self, address: str, source: str = 'custom_wallet') -> dict:
+        weather_terms, _ = self.discover_weather_market_terms()
+        candidate = CandidateWallet(address=address.lower(), username=None, pnl=None, volume=None, source=source, verified_badge=None)
+        result = self.evaluate_candidate(candidate, weather_terms)
+        payload = result.to_dict()
+        self.db.add_custom_wallet(address.lower())
+        self.db.save_custom_wallet_result(payload)
+        return payload
 
     def latest_results(self, qualified_only: bool = False, limit: int = 100) -> list[dict]:
         return [json.loads(row['payload_json']) for row in self.db.latest_results(qualified_only=qualified_only, limit=limit)]

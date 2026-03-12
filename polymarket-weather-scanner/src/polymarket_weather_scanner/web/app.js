@@ -19,6 +19,9 @@ const refreshButton = document.getElementById('refreshButton');
 const bucketFiltersGrid = document.getElementById('bucketFiltersGrid');
 const resetBucketFiltersButton = document.getElementById('resetBucketFilters');
 const categoryList = document.getElementById('categoryList');
+const walletAddressInput = document.getElementById('walletAddressInput');
+const addWalletButton = document.getElementById('addWalletButton');
+const addWalletStatus = document.getElementById('addWalletStatus');
 
 initBucketFilters();
 renderCategories();
@@ -371,6 +374,34 @@ function resetBucketFilters() {
   renderList();
 }
 
+async function addWallet() {
+  const address = walletAddressInput.value.trim().toLowerCase();
+  if (!address) {
+    addWalletStatus.textContent = 'Wallet address gir.';
+    return;
+  }
+  addWalletStatus.textContent = 'Analiz ediliyor...';
+  addWalletButton.disabled = true;
+  walletAddressInput.disabled = true;
+  try {
+    const res = await fetch('/api/custom-wallets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address }),
+    });
+    const payload = await res.json();
+    if (!res.ok) throw new Error(payload.error || 'wallet eklenemedi');
+    addWalletStatus.textContent = `Eklendi: ${payload.address}`;
+    walletAddressInput.value = '';
+    await load();
+  } catch (error) {
+    addWalletStatus.textContent = error.message || 'wallet eklenemedi';
+  } finally {
+    addWalletButton.disabled = false;
+    walletAddressInput.disabled = false;
+  }
+}
+
 function formatMoney(value) {
   if (value == null) return '—';
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
@@ -414,4 +445,11 @@ document.addEventListener('click', (event) => {
 });
 refreshButton.addEventListener('click', load);
 resetBucketFiltersButton.addEventListener('click', resetBucketFilters);
+addWalletButton.addEventListener('click', addWallet);
+walletAddressInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    addWallet();
+  }
+});
 load().catch((error) => { console.error(error); walletList.innerHTML = '<div class="panel empty-state">Veri yüklenemedi</div>'; });

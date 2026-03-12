@@ -39,6 +39,13 @@ class ScannerWebHandler(SimpleHTTPRequestHandler):
             return super().do_GET()
         super().do_GET()
 
+    def do_POST(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        if parsed.path == '/api/custom-wallets':
+            self.handle_add_wallet()
+            return
+        self.write_json({'error': 'not found'}, status=404)
+
     def handle_results(self, query_string: str) -> None:
         params = parse_qs(query_string)
         qualified_only = params.get('qualified_only', ['0'])[0] in {'1', 'true', 'yes'}
@@ -74,6 +81,36 @@ class ScannerWebHandler(SimpleHTTPRequestHandler):
             self.write_json({'error': 'wallet not found'}, status=404)
             return
         self.write_json(row)
+
+    def handle_add_wallet(self) -> None:
+        try:
+            length = int(self.headers.get('Content-Length', '0'))
+        except ValueError:
+            length = 0
+        try:
+            raw = self.rfile.read(length) if length else b'{}'
+            payload = json.loads(raw.decode('utf-8') or '{}')
+        except json.JSONDecodeError:
+            self.write_json({'error': 'invalid json'}, status=400)
+            return
+
+        address = str(payload.get('address') or '').strip().lower()
+        label = str(payload.get('label') or '').strip() or None
+        if not address:
+            self.write_json({'error': 'address is required'}, status=400)
+            return
+        if not address.startswith('0x') or len(address) != 42:
+            self.write_json({'error': 'invalid wallet address'}, status=400)
+            return
+
+        try:
+            self.db.add_custom_wallet(address, label)
+            result = self.scanner.analyze_wallet(address, source='custom_wallet')
+        except Exception as exc:  # noqa: BLE001
+            self.write_json({'error': f'wallet analysis failed: {exc}'}, status=500)
+            return
+
+        self.write_json(result, status=201)
 
     def write_json(self, payload: object, status: int = 200) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode('utf-8')

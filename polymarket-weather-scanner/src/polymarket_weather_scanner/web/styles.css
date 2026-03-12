@@ -30,6 +30,9 @@ button { cursor: pointer; }
 .main-layout { display:grid; grid-template-columns: 220px minmax(0, 1fr); gap: 20px; align-items: start; }
 .category-sidebar { padding: 18px; position: sticky; top: 18px; }
 .category-sidebar-header { margin-bottom: 14px; }
+.add-wallet-box { display:grid; gap:8px; margin-bottom: 16px; }
+.add-wallet-box label { font-size: 13px; color: var(--muted); }
+.add-wallet-status { min-height: 18px; font-size: 12px; }
 .category-list { display:grid; gap: 10px; }
 .category-item { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; background: rgba(255,255,255,0.03); }
 .category-item.active { border-color: var(--accent); color: var(--accent); }
