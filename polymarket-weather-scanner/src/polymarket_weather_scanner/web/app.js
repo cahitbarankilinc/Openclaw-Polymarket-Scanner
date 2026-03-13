@@ -118,6 +118,9 @@ function categoryLabel(category) {
   if (category === 'favs') return 'Favs';
   if (category === 'all') return 'All';
   if (category === 'custom') return 'Custom';
+  if (category === 'weather_deep') return 'Weather Deep';
+  if (category === 'custom_deep') return 'Custom Deep';
+  if (category.endsWith('_deep')) return `${categoryLabel(category.slice(0, -5))} Deep`;
   return category.replaceAll('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 

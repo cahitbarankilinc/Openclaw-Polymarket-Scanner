@@ -226,6 +226,31 @@ class WeatherWalletScanner:
             five_cent_buckets=[bucket.to_dict() for bucket in five_cent],
         )
 
+    def build_seed_result(self, candidate: CandidateWallet) -> WalletScanResult:
+        return WalletScanResult(
+            address=candidate.address,
+            username=candidate.username,
+            pnl=float(candidate.pnl) if candidate.pnl is not None else 0.0,
+            distinct_markets_traded=0,
+            last_trade_count=0,
+            sell_trade_count=0,
+            buy_trade_count=0,
+            weather_trade_count=0,
+            weather_trade_ratio=0.0,
+            qualified=False,
+            qualification_reason='seed_only_pending_deep_scan',
+            source=candidate.source,
+            source_category=candidate.source_category,
+            win_stats=WalletWinStats(
+                analyzed_closed_positions=0,
+                wins=0,
+                losses=0,
+                win_rate=0.0,
+                grouped_buckets=[BucketStat(label=label, start_cents=start, end_cents=end).to_dict() for (label, start, end) in GROUPED_BUCKETS],
+                five_cent_buckets=[BucketStat(label=f'{start}-{start + 5}¢', start_cents=start, end_cents=start + 5).to_dict() for start in range(0, 100, 5)],
+            ).to_dict(),
+        )
+
     def evaluate_candidate(self, candidate: CandidateWallet, weather_terms: set[str]) -> WalletScanResult:
         distinct_markets = self.client.total_markets_traded(candidate.address)
         activity = self.client.user_activity(candidate.address, limit=self.config.activity_limit)
@@ -307,12 +332,16 @@ class WeatherWalletScanner:
         seen_addresses.update(candidate.address for candidate in event_candidates)
         custom_candidates = self.seed_custom_candidates(seen_addresses)
 
-        candidate_groups: list[tuple[str, list[CandidateWallet]]] = [
-            *[(category, candidates) for category, candidates in leaderboard_groups.items()],
-            ('weather', event_candidates),
-            ('custom', custom_candidates),
+        stage1_groups: list[tuple[str, list[CandidateWallet]]] = list(leaderboard_groups.items())
+        stage2_groups: list[tuple[str, list[CandidateWallet]]] = [
+            *[(f'{category}_deep', sorted(candidates, key=lambda item: item.pnl or 0.0, reverse=True)[: self.config.stage2_leaderboard_per_category]) for category, candidates in leaderboard_groups.items()],
+            ('weather_deep', event_candidates),
+            ('custom_deep', custom_candidates),
         ]
-        category_totals = {category: len(candidates) for category, candidates in candidate_groups}
+
+        stage1_totals = {category: len(candidates) for category, candidates in stage1_groups}
+        stage2_totals = {category: len(candidates) for category, candidates in stage2_groups}
+        category_totals = {**stage1_totals, **stage2_totals}
         total_candidates = sum(category_totals.values())
         category_completed = {category: 0 for category in category_totals}
         completed_categories: list[str] = []
@@ -327,7 +356,7 @@ class WeatherWalletScanner:
                 scan_id=scan_id,
                 total_candidates=total_candidates,
                 completed_candidates=0,
-                active_category=candidate_groups[0][0] if candidate_groups else None,
+                active_category=stage1_groups[0][0] if stage1_groups else None,
                 category_totals=category_totals,
                 category_completed=category_completed,
                 completed_categories=completed_categories,
@@ -337,7 +366,47 @@ class WeatherWalletScanner:
         )
 
         try:
-            for category, candidates in candidate_groups:
+            for category, candidates in stage1_groups:
+                self._write_scan_state(
+                    self._scan_state_payload(
+                        running=True,
+                        scan_id=scan_id,
+                        total_candidates=total_candidates,
+                        completed_candidates=completed_candidates,
+                        active_category=category,
+                        category_totals=category_totals,
+                        category_completed=category_completed,
+                        completed_categories=completed_categories,
+                        errors=errors,
+                        started_at=started_at,
+                    )
+                )
+                for candidate in candidates:
+                    try:
+                        result = self.build_seed_result(candidate)
+                        self.db.save_result(scan_id, result)
+                        results.append(result)
+                    except Exception as exc:  # noqa: BLE001
+                        errors.append(f'{category}: {exc}')
+                    completed_candidates += 1
+                    category_completed[category] = category_completed.get(category, 0) + 1
+                completed_categories.append(category)
+                self._write_scan_state(
+                    self._scan_state_payload(
+                        running=True,
+                        scan_id=scan_id,
+                        total_candidates=total_candidates,
+                        completed_candidates=completed_candidates,
+                        active_category=category,
+                        category_totals=category_totals,
+                        category_completed=category_completed,
+                        completed_categories=completed_categories,
+                        errors=errors[-20:],
+                        started_at=started_at,
+                    )
+                )
+
+            for category, candidates in stage2_groups:
                 self._write_scan_state(
                     self._scan_state_payload(
                         running=True,
@@ -355,7 +424,6 @@ class WeatherWalletScanner:
                 if not candidates:
                     completed_categories.append(category)
                     continue
-
                 with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
                     futures = [executor.submit(self.evaluate_candidate, candidate, weather_terms) for candidate in candidates]
                     for future in as_completed(futures):

@@ -30,6 +30,8 @@ class ScannerConfig:
     activity_limit: int = 500
     closed_positions_limit: int = 500
     max_workers: int = 8
+    stage1_workers: int = 16
+    stage2_leaderboard_per_category: int = 100
     enable_event_trade_seeding: bool = True
     seed_event_trade_limit: int = 100
     max_seed_events: int = 50
