@@ -10,9 +10,7 @@
     <div class="page">
       <header class="hero">
         <div>
-          <p class="eyebrow">Local frontend</p>
           <h1>Polymarket Weather Scanner</h1>
-          <p class="muted">Wallet listesi + kategori bazlı görünüm + win-rate bucket analizi.</p>
         </div>
         <div class="refresh-area">
           <button id="refreshButton">Yenile</button>
@@ -26,7 +24,6 @@
         <aside class="panel category-sidebar">
           <div class="category-sidebar-header">
             <h2>Kategoriler</h2>
-            <p class="muted">Favs + leaderboard kategorileri + custom walletlar.</p>
           </div>
           <div class="add-wallet-box">
             <label for="walletAddressInput">Wallet ekle</label>
@@ -63,10 +60,8 @@
           </section>
 
           <section class="panel bucket-filters">
-            <div class="bucket-filters-header simple">
-              <button id="resetBucketFilters" type="button" class="secondary-button">Bucket filtrelerini temizle</button>
-            </div>
             <div id="bucketFiltersGrid" class="bucket-filters-grid"></div>
+            <button id="resetBucketFilters" type="button" class="secondary-button bucket-reset-floating">Bucket filtrelerini temizle</button>
           </section>
 
           <section class="wallet-list" id="walletList"></section>
