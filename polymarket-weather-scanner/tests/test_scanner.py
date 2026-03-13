@@ -64,6 +64,28 @@ class ScannerTests(unittest.TestCase):
             self.assertEqual(grouped['65-85¢']['wins'], 1)
             self.assertEqual(grouped['85-100¢']['losses'], 1)
 
+    def test_calculate_win_stats_outcome_filter_is_case_insensitive_exact_match(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            scanner = StubScanner(Path(tmp))
+            scanner.client.closed_positions_all = lambda user, max_items=500: [
+                {'avgPrice': 0.10, 'realizedPnl': 8, 'outcome': 'Yes'},
+                {'avgPrice': 0.20, 'realizedPnl': -2, 'outcome': 'YES'},
+                {'avgPrice': 0.30, 'realizedPnl': 5, 'outcome': 'No'},
+                {'avgPrice': 0.40, 'realizedPnl': 4, 'outcome': 'Yes '},
+                {'avgPrice': 0.50, 'realizedPnl': 7, 'outcome': 'Yes sir'},
+            ]
+            stats = scanner.calculate_win_stats(CandidateWallet(address='0xabc'))
+            yes_stats = stats.outcome_stats['yes']
+            no_stats = stats.outcome_stats['no']
+
+            self.assertEqual(yes_stats['analyzed_closed_positions'], 3)
+            self.assertEqual(yes_stats['wins'], 2)
+            self.assertEqual(yes_stats['losses'], 1)
+            self.assertAlmostEqual(yes_stats['win_rate'], 2 / 3)
+            self.assertEqual(no_stats['analyzed_closed_positions'], 1)
+            self.assertIn('yes sir', stats.outcome_stats)
+            self.assertEqual(stats.outcome_stats['yes sir']['analyzed_closed_positions'], 1)
+
 
 if __name__ == '__main__':
     unittest.main()

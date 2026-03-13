@@ -1,5 +1,6 @@
 const GROUPED_BUCKET_LABELS = ['0-15¢', '15-35¢', '35-65¢', '65-85¢', '85-100¢'];
 const FAVORITES_STORAGE_KEY = 'polymarket-weather-scanner:favs';
+const FAVORITE_ITEMS_STORAGE_KEY = 'polymarket-weather-scanner:fav-items';
 const CATEGORY_ALIASES = {
   business: 'finance',
   pop_culture: 'culture',
@@ -14,12 +15,13 @@ const state = {
   activeCategory: 'all',
   favorites: new Set(loadFavorites()),
   loading: false,
-  lastFullLoadAt: 0,
+  refreshing: false,
 };
 const summaryCards = document.getElementById('summaryCards');
 const summaryCardTemplate = document.getElementById('summaryCardTemplate');
 const walletList = document.getElementById('walletList');
 const searchInput = document.getElementById('searchInput');
+const outcomeInput = document.getElementById('outcomeInput');
 const qualifiedOnly = document.getElementById('qualifiedOnly');
 const sortSelect = document.getElementById('sortSelect');
 const refreshButton = document.getElementById('refreshButton');
@@ -65,7 +67,7 @@ function renderScanProgress() {
   setRefreshProgress(0, '');
 }
 
-async function load(force = false) {
+async function load() {
   if (state.loading) return;
   state.loading = true;
   refreshButton.disabled = true;
@@ -78,9 +80,14 @@ async function load(force = false) {
     const scanStateRes = await fetch('/api/scan-state');
     setRefreshProgress(80);
     state.summary = await summaryRes.json();
-    state.items = await resultsRes.json();
+    const freshItems = await resultsRes.json();
+    const favoriteItems = loadFavoriteItems();
+    const merged = new Map(freshItems.map((item) => [String(item.address).toLowerCase(), item]));
+    for (const address of state.favorites) {
+      if (!merged.has(address) && favoriteItems[address]) merged.set(address, favoriteItems[address]);
+    }
+    state.items = [...merged.values()];
     state.scanState = await scanStateRes.json();
-    state.lastFullLoadAt = Date.now();
     if (!availableCategories().includes(state.activeCategory)) state.activeCategory = 'all';
     renderSummary();
     renderCategories();
@@ -102,8 +109,30 @@ function loadFavorites() {
   }
 }
 
+function loadFavoriteItems() {
+  try {
+    const raw = localStorage.getItem(FAVORITE_ITEMS_STORAGE_KEY);
+    const items = raw ? JSON.parse(raw) : {};
+    return items && typeof items === 'object' ? items : {};
+  } catch {
+    return {};
+  }
+}
+
 function persistFavorites() {
   localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([...state.favorites]));
+}
+
+function persistFavoriteItem(item) {
+  const items = loadFavoriteItems();
+  items[String(item.address).toLowerCase()] = item;
+  localStorage.setItem(FAVORITE_ITEMS_STORAGE_KEY, JSON.stringify(items));
+}
+
+function removeFavoriteItem(address) {
+  const items = loadFavoriteItems();
+  delete items[String(address).toLowerCase()];
+  localStorage.setItem(FAVORITE_ITEMS_STORAGE_KEY, JSON.stringify(items));
 }
 
 function normalizeCategory(category) {
@@ -275,11 +304,33 @@ function renderSummary() {
   }
 }
 
+function currentOutcomeFilter() {
+  return outcomeInput.value.trim().toLowerCase();
+}
+
+function emptyWinStats() {
+  return {
+    analyzed_closed_positions: 0,
+    wins: 0,
+    losses: 0,
+    win_rate: 0,
+    grouped_buckets: GROUPED_BUCKET_LABELS.map((label) => ({ label, total: 0, wins: 0, losses: 0, win_rate: 0 })),
+  };
+}
+
+function displayWinStats(item) {
+  const outcome = currentOutcomeFilter();
+  const base = item.win_stats || emptyWinStats();
+  if (!outcome) return base;
+  return base.outcome_stats?.[outcome] || emptyWinStats();
+}
+
 function filteredItems() {
   let items = [...state.items];
   const query = searchInput.value.trim().toLowerCase();
   const mode = qualifiedOnly.value;
   const sortKey = sortSelect.value;
+  const outcome = currentOutcomeFilter();
 
   if (state.activeCategory === 'favs') {
     items = items.filter((item) => state.favorites.has(item.address.toLowerCase()));
@@ -291,6 +342,9 @@ function filteredItems() {
     items = items.filter((item) => [item.username, item.address, item.source, item.source_category, item.qualification_reason]
       .filter(Boolean).some((value) => String(value).toLowerCase().includes(query)));
   }
+  if (outcome) {
+    items = items.filter((item) => (displayWinStats(item).analyzed_closed_positions || 0) > 0);
+  }
   if (mode === 'qualified') items = items.filter((item) => item.qualified);
   if (mode === 'rejected') items = items.filter((item) => !item.qualified);
   items = items.filter(matchesBucketFilters);
@@ -299,7 +353,7 @@ function filteredItems() {
 }
 
 function matchesBucketFilters(item) {
-  const groupedBuckets = item.win_stats?.grouped_buckets || [];
+  const groupedBuckets = displayWinStats(item).grouped_buckets || [];
   return GROUPED_BUCKET_LABELS.every((label, index) => {
     const bucket = groupedBuckets.find((entry) => entry.label === label) || groupedBuckets[index] || null;
     const activity = bucket?.total ?? 0;
@@ -339,7 +393,7 @@ function sortButtonLabel(direction) {
 }
 
 function getGroupedBucket(item, bucketIndex) {
-  const groupedBuckets = item.win_stats?.grouped_buckets || [];
+  const groupedBuckets = displayWinStats(item).grouped_buckets || [];
   return groupedBuckets.find((entry) => entry.label === GROUPED_BUCKET_LABELS[bucketIndex]) || groupedBuckets[bucketIndex] || null;
 }
 
@@ -357,8 +411,8 @@ function compareItems(a, b, key) {
     const bv = bucketMetricValue(b, state.bucketSort.bucketIndex, state.bucketSort.metric);
     return state.bucketSort.direction === 'asc' ? av - bv : bv - av;
   }
-  const av = key === 'win_rate' ? (a.win_stats?.win_rate ?? 0) : (a[key] ?? 0);
-  const bv = key === 'win_rate' ? (b.win_stats?.win_rate ?? 0) : (b[key] ?? 0);
+  const av = key === 'win_rate' ? (displayWinStats(a).win_rate ?? 0) : (a[key] ?? 0);
+  const bv = key === 'win_rate' ? (displayWinStats(b).win_rate ?? 0) : (b[key] ?? 0);
   return bv - av;
 }
 
@@ -370,7 +424,7 @@ function renderList() {
 }
 
 function renderWalletCard(item) {
-  const win = item.win_stats || {};
+  const win = displayWinStats(item);
   const grouped = win.grouped_buckets || [];
   const statusClass = item.qualified ? 'good' : 'bad';
   const favorite = isFavorite(item.address);
@@ -429,8 +483,14 @@ function isFavorite(address) {
 
 function toggleFavorite(address) {
   const key = String(address).toLowerCase();
-  if (state.favorites.has(key)) state.favorites.delete(key);
-  else state.favorites.add(key);
+  if (state.favorites.has(key)) {
+    state.favorites.delete(key);
+    removeFavoriteItem(key);
+  } else {
+    state.favorites.add(key);
+    const item = state.items.find((entry) => String(entry.address).toLowerCase() === key);
+    if (item) persistFavoriteItem(item);
+  }
   persistFavorites();
   renderCategories();
   renderList();
@@ -462,6 +522,36 @@ function resetBucketFilters() {
     input.value = '';
   });
   renderList();
+}
+
+async function refreshScan() {
+  if (state.loading || state.refreshing) return;
+  state.refreshing = true;
+  refreshButton.disabled = true;
+  try {
+    setRefreshProgress(5, 'Scan başlatılıyor...');
+    const startRes = await fetch('/api/scan', { method: 'POST' });
+    const startPayload = await startRes.json();
+    if (!startRes.ok) throw new Error(startPayload.error || 'scan başlatılamadı');
+
+    for (;;) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const stateRes = await fetch('/api/scan-state');
+      state.scanState = await stateRes.json();
+      renderScanProgress();
+      if (!state.scanState?.running) break;
+    }
+
+    await load();
+    setRefreshProgress(100, '%100');
+    setTimeout(() => setRefreshProgress(0, ''), 1200);
+  } catch (error) {
+    console.error(error);
+    setRefreshProgress(0, 'Hata');
+  } finally {
+    state.refreshing = false;
+    refreshButton.disabled = false;
+  }
 }
 
 async function addWallet() {
@@ -508,7 +598,7 @@ function escapeHtml(value) {
   return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 }
 
-[searchInput, qualifiedOnly, sortSelect].forEach((el) => el.addEventListener('input', renderList));
+[searchInput, outcomeInput, qualifiedOnly, sortSelect].forEach((el) => el.addEventListener('input', renderList));
 document.addEventListener('input', (event) => {
   if (event.target.matches('[data-bucket-index]')) renderList();
 });
@@ -533,7 +623,7 @@ document.addEventListener('click', (event) => {
   if (!button) return;
   cycleBucketSort(Number(button.dataset.sortBucketIndex), button.dataset.sortMetric);
 });
-refreshButton.addEventListener('click', load);
+refreshButton.addEventListener('click', refreshScan);
 resetBucketFiltersButton.addEventListener('click', resetBucketFilters);
 addWalletButton.addEventListener('click', addWallet);
 walletAddressInput.addEventListener('keydown', (event) => {
@@ -542,20 +632,4 @@ walletAddressInput.addEventListener('keydown', (event) => {
     addWallet();
   }
 });
-setInterval(async () => {
-  try {
-    if (state.loading) return;
-    const res = await fetch('/api/scan-state');
-    state.scanState = await res.json();
-    renderScanProgress();
-    renderSummary();
-    const shouldRefreshData = state.scanState?.running && (Date.now() - state.lastFullLoadAt > 10000);
-    if (shouldRefreshData) {
-      await load();
-    }
-  } catch (error) {
-    console.error(error);
-  }
-}, 2500);
-
 load().catch((error) => { console.error(error); walletList.innerHTML = '<div class="panel empty-state">Veri yüklenemedi</div>'; });

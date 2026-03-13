@@ -198,10 +198,14 @@ class WeatherWalletScanner:
         grouped = [BucketStat(label=label, start_cents=start, end_cents=end) for (label, start, end) in GROUPED_BUCKETS]
         wins = 0
         losses = 0
+        outcome_grouped: dict[str, list[BucketStat]] = {}
+        outcome_counts: dict[str, dict[str, int]] = {}
+        outcome_labels: dict[str, str] = {}
 
         for row in rows:
             cents = self._price_to_cents(row.get('avgPrice'))
             is_win = float(row.get('realizedPnl') or 0.0) > 0.0
+            outcome = str(row.get('outcome') or '').strip()
             if is_win:
                 wins += 1
             else:
@@ -216,13 +220,46 @@ class WeatherWalletScanner:
                         group.losses += 1
                     break
 
+            if outcome:
+                outcome_key = outcome.lower()
+                if outcome_key not in outcome_grouped:
+                    outcome_grouped[outcome_key] = [BucketStat(label=label, start_cents=start, end_cents=end) for (label, start, end) in GROUPED_BUCKETS]
+                    outcome_counts[outcome_key] = {'wins': 0, 'losses': 0}
+                    outcome_labels[outcome_key] = outcome
+                if is_win:
+                    outcome_counts[outcome_key]['wins'] += 1
+                else:
+                    outcome_counts[outcome_key]['losses'] += 1
+                for group in outcome_grouped[outcome_key]:
+                    if group.start_cents <= cents < group.end_cents:
+                        group.total += 1
+                        if is_win:
+                            group.wins += 1
+                        else:
+                            group.losses += 1
+                        break
+
         total = wins + losses
+        outcome_stats = {}
+        for outcome_key, buckets in outcome_grouped.items():
+            counts = outcome_counts[outcome_key]
+            outcome_total = counts['wins'] + counts['losses']
+            outcome_stats[outcome_key] = {
+                'outcome': outcome_labels[outcome_key],
+                'analyzed_closed_positions': outcome_total,
+                'wins': counts['wins'],
+                'losses': counts['losses'],
+                'win_rate': (counts['wins'] / outcome_total) if outcome_total else 0.0,
+                'grouped_buckets': [bucket.to_dict() for bucket in buckets],
+            }
+
         return WalletWinStats(
             analyzed_closed_positions=total,
             wins=wins,
             losses=losses,
             win_rate=(wins / total) if total else 0.0,
             grouped_buckets=[bucket.to_dict() for bucket in grouped],
+            outcome_stats=outcome_stats,
         )
 
     def build_seed_result(self, candidate: CandidateWallet) -> WalletScanResult:
