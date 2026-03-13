@@ -330,6 +330,21 @@ class WeatherWalletScanner:
 
     def scan(self) -> list[WalletScanResult]:
         started_at = time()
+        scan_id = self.db.create_scan()
+        self._write_scan_state(
+            self._scan_state_payload(
+                running=True,
+                scan_id=scan_id,
+                total_candidates=0,
+                completed_candidates=0,
+                active_category='seeding',
+                category_totals={},
+                category_completed={},
+                completed_categories=[],
+                errors=[],
+                started_at=started_at,
+            )
+        )
         weather_terms, weather_event_ids = self.discover_weather_market_terms()
         leaderboard_groups = self.seed_leaderboard_candidates()
 
@@ -354,7 +369,6 @@ class WeatherWalletScanner:
         errors: list[str] = []
         completed_candidates = 0
         results: list[WalletScanResult] = []
-        scan_id = self.db.create_scan()
 
         self._write_scan_state(
             self._scan_state_payload(
