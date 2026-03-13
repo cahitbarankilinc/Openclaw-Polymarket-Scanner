@@ -52,13 +52,16 @@ class WeatherWalletScanner:
         for category in self.config.leaderboard_categories:
             for period in self.config.leaderboard_periods:
                 for offset in self.config.leaderboard_offsets:
-                    rows = self.client.leaderboard(
-                        category=category,
-                        time_period=period,
-                        order_by=self.config.leaderboard_order_by,
-                        limit=self.config.leaderboard_limit,
-                        offset=offset,
-                    )
+                    try:
+                        rows = self.client.leaderboard(
+                            category=category,
+                            time_period=period,
+                            order_by=self.config.leaderboard_order_by,
+                            limit=self.config.leaderboard_limit,
+                            offset=offset,
+                        )
+                    except Exception:
+                        continue
                     if not rows:
                         continue
                     for row in rows:

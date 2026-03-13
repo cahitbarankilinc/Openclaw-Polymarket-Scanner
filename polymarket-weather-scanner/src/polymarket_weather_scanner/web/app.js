@@ -1,6 +1,10 @@
 const GROUPED_BUCKET_LABELS = ['0-15¢', '15-35¢', '35-65¢', '65-85¢', '85-100¢'];
 const FAVORITES_STORAGE_KEY = 'polymarket-weather-scanner:favs';
-const STATIC_CATEGORY_ORDER = ['favs', 'all', 'custom'];
+const CATEGORY_ALIASES = {
+  business: 'finance',
+  pop_culture: 'culture',
+};
+const STATIC_CATEGORY_ORDER = ['favs', 'all', 'politics', 'sports', 'crypto', 'finance', 'culture', 'mentions', 'weather', 'economics', 'tech', 'custom'];
 
 const state = {
   items: [],
@@ -68,7 +72,8 @@ function persistFavorites() {
 }
 
 function normalizeCategory(category) {
-  return String(category || 'unknown').toLowerCase();
+  const normalized = String(category || 'unknown').toLowerCase();
+  return CATEGORY_ALIASES[normalized] || normalized;
 }
 
 function dynamicCategories() {

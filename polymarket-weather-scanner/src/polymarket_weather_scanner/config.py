@@ -15,7 +15,17 @@ class ScannerConfig:
     page_size: int = 50
     leaderboard_limit: int = 50
     leaderboard_offsets: tuple[int, ...] = tuple(range(0, 501, 50))
-    leaderboard_categories: tuple[str, ...] = ('WEATHER', 'POLITICS', 'SPORTS', 'CRYPTO', 'BUSINESS', 'POP_CULTURE')
+    leaderboard_categories: tuple[str, ...] = (
+        'WEATHER',
+        'POLITICS',
+        'SPORTS',
+        'CRYPTO',
+        'BUSINESS',
+        'POP_CULTURE',
+        'MENTIONS',
+        'ECONOMICS',
+        'TECH',
+    )
     activity_limit: int = 500
     closed_positions_limit: int = 500
     max_workers: int = 8
