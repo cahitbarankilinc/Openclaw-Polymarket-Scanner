@@ -84,6 +84,7 @@ button { cursor: pointer; }
 .badge { display:inline-flex; align-items:center; padding: 4px 10px; border-radius:999px; font-size: 12px; font-weight: 700; }
 .badge.good { background: rgba(50,210,150,0.15); color: var(--good); }
 .badge.bad { background: rgba(255,123,123,0.12); color: var(--bad); }
+.badge.source-category { background: rgba(102,217,239,0.12); color: var(--accent); }
 .badge[data-tooltip] {
   position: relative;
 }

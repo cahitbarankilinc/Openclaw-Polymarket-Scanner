@@ -1,12 +1,12 @@
 const GROUPED_BUCKET_LABELS = ['0-15¢', '15-35¢', '35-65¢', '65-85¢', '85-100¢'];
-const CATEGORY_ORDER = ['favs', 'weather'];
 const FAVORITES_STORAGE_KEY = 'polymarket-weather-scanner:favs';
+const STATIC_CATEGORY_ORDER = ['favs', 'all', 'custom'];
 
 const state = {
   items: [],
   summary: null,
   bucketSort: null,
-  activeCategory: 'weather',
+  activeCategory: 'all',
   favorites: new Set(loadFavorites()),
 };
 const summaryCards = document.getElementById('summaryCards');
@@ -37,11 +37,12 @@ async function load() {
     setRefreshProgress(10);
     const summaryRes = await fetch('/api/summary');
     setRefreshProgress(45);
-    const resultsRes = await fetch('/api/results?limit=500');
+    const resultsRes = await fetch('/api/results?limit=5000');
     setRefreshProgress(75);
     state.summary = await summaryRes.json();
     setRefreshProgress(88);
     state.items = await resultsRes.json();
+    if (!availableCategories().includes(state.activeCategory)) state.activeCategory = 'all';
     renderSummary();
     renderCategories();
     renderList();
@@ -66,20 +67,34 @@ function persistFavorites() {
   localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([...state.favorites]));
 }
 
+function normalizeCategory(category) {
+  return String(category || 'unknown').toLowerCase();
+}
+
+function dynamicCategories() {
+  const categories = new Set((state.items || []).map((item) => normalizeCategory(item.source_category)).filter(Boolean));
+  return [...categories].filter((category) => !STATIC_CATEGORY_ORDER.includes(category)).sort();
+}
+
+function availableCategories() {
+  return [...STATIC_CATEGORY_ORDER, ...dynamicCategories()];
+}
+
 function categoryLabel(category) {
   if (category === 'favs') return 'Favs';
-  if (category === 'weather') return 'Weather';
-  return category;
+  if (category === 'all') return 'All';
+  if (category === 'custom') return 'Custom';
+  return category.replaceAll('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function categoryCount(category) {
   if (category === 'favs') return state.items.filter((item) => state.favorites.has(item.address.toLowerCase())).length;
-  if (category === 'weather') return state.items.length;
-  return 0;
+  if (category === 'all') return state.items.length;
+  return state.items.filter((item) => normalizeCategory(item.source_category) === category).length;
 }
 
 function renderCategories() {
-  categoryList.innerHTML = CATEGORY_ORDER.map((category) => `
+  categoryList.innerHTML = availableCategories().map((category) => `
     <button
       type="button"
       class="category-item${state.activeCategory === category ? ' active' : ''}"
@@ -210,10 +225,12 @@ function filteredItems() {
 
   if (state.activeCategory === 'favs') {
     items = items.filter((item) => state.favorites.has(item.address.toLowerCase()));
+  } else if (state.activeCategory !== 'all') {
+    items = items.filter((item) => normalizeCategory(item.source_category) === state.activeCategory);
   }
 
   if (query) {
-    items = items.filter((item) => [item.username, item.address, item.source, item.qualification_reason]
+    items = items.filter((item) => [item.username, item.address, item.source, item.source_category, item.qualification_reason]
       .filter(Boolean).some((value) => String(value).toLowerCase().includes(query)));
   }
   if (mode === 'qualified') items = items.filter((item) => item.qualified);
@@ -314,6 +331,7 @@ function renderWalletCard(item) {
             >★</button>
             <strong>${escapeHtml(item.username || item.address)}</strong>
             <span class="badge ${statusClass}"${!item.qualified ? ` data-tooltip="${escapeHtml(rejectedReason)}" title="${escapeHtml(rejectedReason)}"` : ''}>${item.qualified ? 'qualified' : 'rejected'}</span>
+            <span class="badge source-category">${escapeHtml(categoryLabel(normalizeCategory(item.source_category)))}</span>
           </div>
           <div class="address">${escapeHtml(item.address)}</div>
           <div class="wallet-metrics muted">
@@ -324,6 +342,7 @@ function renderWalletCard(item) {
             <span>PnL: ${formatMoney(item.pnl)}</span>
             <span>Weather ratio: ${formatPercent(item.weather_trade_ratio)}</span>
             <span>Markets: ${formatInt(item.distinct_markets_traded)}</span>
+            <span>Source: ${escapeHtml(item.source || '—')}</span>
           </div>
         </div>
         <div class="bucket-grid">

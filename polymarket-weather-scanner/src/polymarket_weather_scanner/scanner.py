@@ -49,32 +49,34 @@ class WeatherWalletScanner:
 
     def seed_candidates(self, weather_event_ids: set[int]) -> dict[str, CandidateWallet]:
         candidates: dict[str, CandidateWallet] = {}
-        for period in self.config.leaderboard_periods:
-            for offset in self.config.leaderboard_offsets:
-                rows = self.client.leaderboard(
-                    category=self.config.leaderboard_category,
-                    time_period=period,
-                    order_by=self.config.leaderboard_order_by,
-                    limit=self.config.leaderboard_limit,
-                    offset=offset,
-                )
-                if not rows:
-                    continue
-                for row in rows:
-                    address = str(row.get('proxyWallet') or '').lower()
-                    if not address:
-                        continue
-                    existing = candidates.get(address)
-                    candidate = CandidateWallet(
-                        address=address,
-                        username=row.get('userName'),
-                        pnl=float(row.get('pnl') or 0.0),
-                        volume=float(row.get('vol') or 0.0),
-                        source=f'leaderboard:{period.lower()}',
-                        verified_badge=bool(row.get('verifiedBadge')),
+        for category in self.config.leaderboard_categories:
+            for period in self.config.leaderboard_periods:
+                for offset in self.config.leaderboard_offsets:
+                    rows = self.client.leaderboard(
+                        category=category,
+                        time_period=period,
+                        order_by=self.config.leaderboard_order_by,
+                        limit=self.config.leaderboard_limit,
+                        offset=offset,
                     )
-                    if existing is None or (candidate.pnl or 0.0) > (existing.pnl or 0.0):
-                        candidates[address] = candidate
+                    if not rows:
+                        continue
+                    for row in rows:
+                        address = str(row.get('proxyWallet') or '').lower()
+                        if not address:
+                            continue
+                        existing = candidates.get(address)
+                        candidate = CandidateWallet(
+                            address=address,
+                            username=row.get('userName'),
+                            pnl=float(row.get('pnl') or 0.0),
+                            volume=float(row.get('vol') or 0.0),
+                            source=f'leaderboard:{period.lower()}',
+                            source_category=category.lower(),
+                            verified_badge=bool(row.get('verifiedBadge')),
+                        )
+                        if existing is None or (candidate.pnl or 0.0) > (existing.pnl or 0.0):
+                            candidates[address] = candidate
 
         if self.config.enable_event_trade_seeding:
             for event_id in sorted(weather_event_ids)[: self.config.max_seed_events]:
@@ -94,6 +96,7 @@ class WeatherWalletScanner:
                         pnl=None,
                         volume=None,
                         source=f'event_trades:{event_id}',
+                        source_category='weather',
                         verified_badge=None,
                     )
 
@@ -106,6 +109,7 @@ class WeatherWalletScanner:
                 pnl=None,
                 volume=None,
                 source='custom_wallet',
+                source_category='custom',
                 verified_badge=None,
             )
         return candidates
@@ -208,12 +212,13 @@ class WeatherWalletScanner:
         if pnl_value is None or pnl_value <= self.config.minimum_positive_pnl:
             qualified = False
             reasons.append('non_positive_pnl')
-        if weather_trade_count < self.config.minimum_weather_trade_count:
-            qualified = False
-            reasons.append(f'weather_trade_count<{self.config.minimum_weather_trade_count}')
-        if weather_trade_ratio < self.config.minimum_weather_trade_ratio:
-            qualified = False
-            reasons.append(f'weather_trade_ratio<{self.config.minimum_weather_trade_ratio:.2f}')
+        if self.config.enforce_weather_filters:
+            if weather_trade_count < self.config.minimum_weather_trade_count:
+                qualified = False
+                reasons.append(f'weather_trade_count<{self.config.minimum_weather_trade_count}')
+            if weather_trade_ratio < self.config.minimum_weather_trade_ratio:
+                qualified = False
+                reasons.append(f'weather_trade_ratio<{self.config.minimum_weather_trade_ratio:.2f}')
         if not trade_rows:
             qualified = False
             reasons.append('no_trade_rows')
@@ -231,6 +236,7 @@ class WeatherWalletScanner:
             qualified=qualified,
             qualification_reason='qualified' if qualified else ','.join(reasons),
             source=candidate.source,
+            source_category=candidate.source_category,
             win_stats=win_stats.to_dict(),
         )
 
@@ -244,11 +250,12 @@ class WeatherWalletScanner:
                 results.append(future.result())
         scan_id = self.db.create_scan()
         self.db.save_results(scan_id, results)
+        self.db.prune_rejected_history(current_scan_id=scan_id)
         return sorted(results, key=lambda item: (item.qualified, item.weather_trade_ratio, item.pnl or 0.0), reverse=True)
 
     def analyze_wallet(self, address: str, source: str = 'custom_wallet') -> dict:
         weather_terms, _ = self.discover_weather_market_terms()
-        candidate = CandidateWallet(address=address.lower(), username=None, pnl=None, volume=None, source=source, verified_badge=None)
+        candidate = CandidateWallet(address=address.lower(), username=None, pnl=None, volume=None, source=source, source_category='custom', verified_badge=None)
         result = self.evaluate_candidate(candidate, weather_terms)
         payload = result.to_dict()
         self.db.add_custom_wallet(address.lower())

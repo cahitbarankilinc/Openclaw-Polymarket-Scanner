@@ -133,20 +133,47 @@ class ScannerDatabase:
                 ],
             )
 
+    def prune_rejected_history(self, current_scan_id: int) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                '''
+                DELETE FROM scan_results
+                WHERE qualified = 0
+                  AND scan_id <> ?
+                ''',
+                (current_scan_id,),
+            )
+
     def latest_results(self, qualified_only: bool = False, limit: int = 100) -> list[sqlite3.Row]:
         with self.connect() as conn:
-            where = 'WHERE sr.scan_id = (SELECT MAX(id) FROM scans)'
-            if qualified_only:
-                where += ' AND sr.qualified = 1'
+            latest_scan_id = conn.execute('SELECT MAX(id) AS id FROM scans').fetchone()['id']
+            if latest_scan_id is None:
+                return []
+
             scan_rows = conn.execute(
-                f'''
+                '''
                 SELECT sr.*
                 FROM scan_results sr
-                {where}
+                WHERE sr.scan_id = ?
                 ORDER BY sr.qualified DESC, sr.weather_trade_ratio DESC, sr.pnl DESC
-                LIMIT ?
                 ''',
-                (max(limit * 3, limit),),
+                (latest_scan_id,),
+            ).fetchall()
+            historical_qualified_rows = conn.execute(
+                '''
+                SELECT sr.*
+                FROM scan_results sr
+                INNER JOIN (
+                  SELECT lower(address) AS address, MAX(id) AS max_id
+                  FROM scan_results
+                  WHERE qualified = 1
+                  GROUP BY lower(address)
+                ) latest
+                  ON lower(sr.address) = latest.address AND sr.id = latest.max_id
+                WHERE sr.scan_id <> ?
+                ORDER BY sr.id DESC
+                ''',
+                (latest_scan_id,),
             ).fetchall()
             custom_rows = conn.execute(
                 '''
@@ -164,6 +191,15 @@ class ScannerDatabase:
 
             merged: dict[str, sqlite3.Row] = {}
             for row in scan_rows:
+                payload = self._row_payload(row)
+                if qualified_only and not payload.get('qualified'):
+                    continue
+                key = str(row['address']).lower()
+                merged[key] = self._prefer_row(merged.get(key), row)
+            for row in historical_qualified_rows:
+                payload = self._row_payload(row)
+                if qualified_only and not payload.get('qualified'):
+                    continue
                 key = str(row['address']).lower()
                 merged[key] = self._prefer_row(merged.get(key), row)
             for row in custom_rows:
@@ -200,9 +236,8 @@ class ScannerDatabase:
                 '''
                 SELECT sr.*
                 FROM scan_results sr
-                WHERE sr.scan_id = (SELECT MAX(id) FROM scans)
-                  AND lower(sr.address) = lower(?)
-                ORDER BY sr.id DESC
+                WHERE lower(sr.address) = lower(?)
+                ORDER BY sr.qualified DESC, sr.id DESC
                 LIMIT 1
                 ''',
                 (address,),

@@ -11,6 +11,7 @@ class CandidateWallet:
     pnl: float | None = None
     volume: float | None = None
     source: str | None = None
+    source_category: str | None = None
     verified_badge: bool | None = None
 
 
@@ -60,6 +61,7 @@ class WalletScanResult:
     qualified: bool
     qualification_reason: str
     source: str | None
+    source_category: str | None = None
     win_stats: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:

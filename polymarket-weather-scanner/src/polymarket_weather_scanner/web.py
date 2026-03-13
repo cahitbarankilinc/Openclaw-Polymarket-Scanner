@@ -56,8 +56,12 @@ class ScannerWebHandler(SimpleHTTPRequestHandler):
         self.write_json(payload)
 
     def handle_summary(self) -> None:
-        rows = [json.loads(dict(row)['payload_json']) for row in self.db.latest_results(qualified_only=False, limit=1000)]
+        rows = [json.loads(dict(row)['payload_json']) for row in self.db.latest_results(qualified_only=False, limit=5000)]
         qualified = [row for row in rows if row['qualified']]
+        category_counts: dict[str, int] = {}
+        for row in rows:
+            category = str(row.get('source_category') or 'unknown').lower()
+            category_counts[category] = category_counts.get(category, 0) + 1
         summary = {
             'total': len(rows),
             'qualified': len(qualified),
@@ -67,6 +71,7 @@ class ScannerWebHandler(SimpleHTTPRequestHandler):
             'top_pnl': max((row['pnl'] or 0.0) for row in rows) if rows else 0.0,
             'top_markets': max((row['distinct_markets_traded'] for row in rows), default=0),
             'sources': sorted({row['source'] or 'unknown' for row in rows}),
+            'categories': category_counts,
         }
         self.write_json(summary)
 
