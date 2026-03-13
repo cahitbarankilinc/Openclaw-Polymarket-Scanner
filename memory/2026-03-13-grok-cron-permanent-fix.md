@@ -1,0 +1,28 @@
+# Grok cron kalıcı çözüm — 2026-03-13
+
+- Kullanıcı Grok agent cron'unun iki gün üst üste çalışmadığını bildirdi.
+- İnceleme:
+  - Eski job: `5b030397-7df3-421b-82b4-b6f6cde88056` (`grok-daily-x-search-0700`)
+  - Bu job 07:00'de raporu aslında üretiyordu (`grok-output-2026-03-13-07-00-36.md` oluşmuş) fakat aynı agent turn içinde Telegram teslimini de yapmaya çalışırken 900s timeout'a düşüyordu.
+  - Yani üretim vardı, kırılan kısım teslim/ajan turuydu.
+- Kalıcı çözüm:
+  - Üretim cron agent turundan çıkarıldı.
+  - Yeni sistem-level launchd üretici eklendi:
+    - plist: `/Users/baran/Library/LaunchAgents/ai.openclaw.grok-xsearch-daily.plist`
+    - wrapper: `/Users/baran/Desktop/x_search/run-daily-report.sh`
+    - worker: `/Users/baran/Desktop/x_search/run-daily-report.js`
+  - Bu üretici:
+    - login/load anında çalışır
+    - her gün 07:00 TR'de çalışır
+    - aynı gün rapor zaten üretildiyse skip eder
+  - Eski timeout atan cron disable edildi.
+  - Teslim ayrı ve hafif bir cron job'a bölündü:
+    - id: `a5745794-efcf-4208-838e-360b0d493275`
+    - name: `grok-xsearch-delivery`
+    - her 10 dakikada bir çalışır
+    - sadece son üretilmiş ama henüz gönderilmemiş raporu teslim eder
+  - Yeni yardımcı dosyalar:
+    - `~/Desktop/x_search/prepare-delivery.js`
+    - `~/Desktop/x_search/mark-delivered.js`
+    - `~/Desktop/x_search/delivery-state.json` (ilk teslimden sonra oluşur)
+- Sonuç: üretim ve teslim ayrıldı; timeout riski ana rapor üretimini artık bozamaz.
