@@ -11,8 +11,8 @@ APP_DIR = Path(__file__).resolve().parents[2]
 class ScannerConfig:
     gamma_base: str = 'https://gamma-api.polymarket.com'
     data_base: str = 'https://data-api.polymarket.com'
-    db_path: Path = Path('data/scanner.db')
-    scan_state_path: Path = Path('data/scan-state.json')
+    db_path: Path = APP_DIR / 'data' / 'scanner.db'
+    scan_state_path: Path = APP_DIR / 'data' / 'scan-state.json'
     page_size: int = 50
     leaderboard_limit: int = 50
     leaderboard_offsets: tuple[int, ...] = tuple(range(0, 501, 50))
