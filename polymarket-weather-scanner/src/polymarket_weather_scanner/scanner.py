@@ -4,6 +4,8 @@ import csv
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from threading import Lock
+from time import time
 
 from .client import PolymarketClient
 from .config import ScannerConfig
@@ -27,6 +29,50 @@ class WeatherWalletScanner:
         self.client = PolymarketClient(self.config.gamma_base, self.config.data_base)
         self.db = ScannerDatabase(self.config.db_path)
         self.db.init()
+        self._state_lock = Lock()
+
+    def _write_scan_state(self, payload: dict) -> None:
+        self.config.scan_state_path.parent.mkdir(parents=True, exist_ok=True)
+        self.config.scan_state_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
+
+    def read_scan_state(self) -> dict:
+        if not self.config.scan_state_path.exists():
+            return {'running': False}
+        try:
+            return json.loads(self.config.scan_state_path.read_text(encoding='utf-8'))
+        except Exception:
+            return {'running': False}
+
+    def _scan_state_payload(
+        self,
+        *,
+        running: bool,
+        scan_id: int | None = None,
+        total_candidates: int = 0,
+        completed_candidates: int = 0,
+        active_category: str | None = None,
+        category_totals: dict[str, int] | None = None,
+        category_completed: dict[str, int] | None = None,
+        completed_categories: list[str] | None = None,
+        errors: list[str] | None = None,
+        started_at: float | None = None,
+        finished_at: float | None = None,
+    ) -> dict:
+        percent = int((completed_candidates / total_candidates) * 100) if total_candidates else 0
+        return {
+            'running': running,
+            'scan_id': scan_id,
+            'total_candidates': total_candidates,
+            'completed_candidates': completed_candidates,
+            'percent': percent,
+            'active_category': active_category,
+            'category_totals': category_totals or {},
+            'category_completed': category_completed or {},
+            'completed_categories': completed_categories or [],
+            'errors': errors or [],
+            'started_at': started_at,
+            'finished_at': finished_at,
+        }
 
     def discover_weather_market_terms(self) -> tuple[set[str], set[int]]:
         discovered: set[str] = set(self.config.weather_keywords)
@@ -47,9 +93,10 @@ class WeatherWalletScanner:
                             discovered.add(str(value).lower())
         return discovered, event_ids
 
-    def seed_candidates(self, weather_event_ids: set[int]) -> dict[str, CandidateWallet]:
-        candidates: dict[str, CandidateWallet] = {}
+    def seed_leaderboard_candidates(self) -> dict[str, list[CandidateWallet]]:
+        grouped: dict[str, dict[str, CandidateWallet]] = {category.lower(): {} for category in self.config.leaderboard_categories}
         for category in self.config.leaderboard_categories:
+            category_key = category.lower()
             for period in self.config.leaderboard_periods:
                 for offset in self.config.leaderboard_offsets:
                     try:
@@ -68,52 +115,57 @@ class WeatherWalletScanner:
                         address = str(row.get('proxyWallet') or '').lower()
                         if not address:
                             continue
-                        existing = candidates.get(address)
+                        existing = grouped[category_key].get(address)
                         candidate = CandidateWallet(
                             address=address,
                             username=row.get('userName'),
                             pnl=float(row.get('pnl') or 0.0),
                             volume=float(row.get('vol') or 0.0),
                             source=f'leaderboard:{period.lower()}',
-                            source_category=category.lower(),
+                            source_category=category_key,
                             verified_badge=bool(row.get('verifiedBadge')),
                         )
                         if existing is None or (candidate.pnl or 0.0) > (existing.pnl or 0.0):
-                            candidates[address] = candidate
+                            grouped[category_key][address] = candidate
+        return {category: list(items.values()) for category, items in grouped.items()}
 
-        if self.config.enable_event_trade_seeding:
-            for event_id in sorted(weather_event_ids)[: self.config.max_seed_events]:
-                try:
-                    trades = self.client.trades(event_id=event_id, limit=self.config.seed_event_trade_limit)
-                except Exception:
-                    continue
-                for trade in trades:
-                    address = str(trade.get('proxyWallet') or '').lower()
-                    if not address:
-                        continue
-                    if address in candidates:
-                        continue
-                    candidates[address] = CandidateWallet(
-                        address=address,
-                        username=trade.get('name') or trade.get('pseudonym'),
-                        pnl=None,
-                        volume=None,
-                        source=f'event_trades:{event_id}',
-                        source_category='weather',
-                        verified_badge=None,
-                    )
-
-        for address in self.db.list_custom_wallets():
-            if address in candidates:
+    def seed_event_trade_candidates(self, weather_event_ids: set[int], seen_addresses: set[str]) -> list[CandidateWallet]:
+        candidates: dict[str, CandidateWallet] = {}
+        for event_id in sorted(weather_event_ids)[: self.config.max_seed_events]:
+            try:
+                trades = self.client.trades(event_id=event_id, limit=self.config.seed_event_trade_limit)
+            except Exception:
                 continue
-            candidates[address] = CandidateWallet(
-                address=address,
-                username=None,
-                pnl=None,
-                volume=None,
-                source='custom_wallet',
-                source_category='custom',
-                verified_badge=None,
+            for trade in trades:
+                address = str(trade.get('proxyWallet') or '').lower()
+                if not address or address in seen_addresses or address in candidates:
+                    continue
+                candidates[address] = CandidateWallet(
+                    address=address,
+                    username=trade.get('name') or trade.get('pseudonym'),
+                    pnl=None,
+                    volume=None,
+                    source=f'event_trades:{event_id}',
+                    source_category='weather',
+                    verified_badge=None,
+                )
+        return list(candidates.values())
+
+    def seed_custom_candidates(self, seen_addresses: set[str]) -> list[CandidateWallet]:
+        candidates: list[CandidateWallet] = []
+        for address in self.db.list_custom_wallets():
+            if address in seen_addresses:
+                continue
+            candidates.append(
+                CandidateWallet(
+                    address=address,
+                    username=None,
+                    pnl=None,
+                    volume=None,
+                    source='custom_wallet',
+                    source_category='custom',
+                    verified_badge=None,
+                )
             )
         return candidates
 
@@ -244,17 +296,109 @@ class WeatherWalletScanner:
         )
 
     def scan(self) -> list[WalletScanResult]:
+        started_at = time()
         weather_terms, weather_event_ids = self.discover_weather_market_terms()
-        candidates = self.seed_candidates(weather_event_ids)
+        leaderboard_groups = self.seed_leaderboard_candidates()
+
+        seen_addresses = {candidate.address for candidates in leaderboard_groups.values() for candidate in candidates}
+        event_candidates = self.seed_event_trade_candidates(weather_event_ids, seen_addresses)
+        seen_addresses.update(candidate.address for candidate in event_candidates)
+        custom_candidates = self.seed_custom_candidates(seen_addresses)
+
+        candidate_groups: list[tuple[str, list[CandidateWallet]]] = [
+            *[(category, candidates) for category, candidates in leaderboard_groups.items()],
+            ('weather', event_candidates),
+            ('custom', custom_candidates),
+        ]
+        category_totals = {category: len(candidates) for category, candidates in candidate_groups}
+        total_candidates = sum(category_totals.values())
+        category_completed = {category: 0 for category in category_totals}
+        completed_categories: list[str] = []
+        errors: list[str] = []
+        completed_candidates = 0
         results: list[WalletScanResult] = []
-        with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
-            futures = [executor.submit(self.evaluate_candidate, candidate, weather_terms) for candidate in candidates.values()]
-            for future in as_completed(futures):
-                results.append(future.result())
         scan_id = self.db.create_scan()
-        self.db.save_results(scan_id, results)
-        self.db.prune_rejected_history(current_scan_id=scan_id)
-        return sorted(results, key=lambda item: (item.qualified, item.weather_trade_ratio, item.pnl or 0.0), reverse=True)
+
+        self._write_scan_state(
+            self._scan_state_payload(
+                running=True,
+                scan_id=scan_id,
+                total_candidates=total_candidates,
+                completed_candidates=0,
+                active_category=candidate_groups[0][0] if candidate_groups else None,
+                category_totals=category_totals,
+                category_completed=category_completed,
+                completed_categories=completed_categories,
+                errors=errors,
+                started_at=started_at,
+            )
+        )
+
+        try:
+            for category, candidates in candidate_groups:
+                self._write_scan_state(
+                    self._scan_state_payload(
+                        running=True,
+                        scan_id=scan_id,
+                        total_candidates=total_candidates,
+                        completed_candidates=completed_candidates,
+                        active_category=category,
+                        category_totals=category_totals,
+                        category_completed=category_completed,
+                        completed_categories=completed_categories,
+                        errors=errors,
+                        started_at=started_at,
+                    )
+                )
+                if not candidates:
+                    completed_categories.append(category)
+                    continue
+
+                with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
+                    futures = [executor.submit(self.evaluate_candidate, candidate, weather_terms) for candidate in candidates]
+                    for future in as_completed(futures):
+                        try:
+                            result = future.result()
+                            self.db.save_result(scan_id, result)
+                            results.append(result)
+                        except Exception as exc:  # noqa: BLE001
+                            errors.append(f'{category}: {exc}')
+                        completed_candidates += 1
+                        category_completed[category] = category_completed.get(category, 0) + 1
+                        self._write_scan_state(
+                            self._scan_state_payload(
+                                running=True,
+                                scan_id=scan_id,
+                                total_candidates=total_candidates,
+                                completed_candidates=completed_candidates,
+                                active_category=category,
+                                category_totals=category_totals,
+                                category_completed=category_completed,
+                                completed_categories=completed_categories,
+                                errors=errors[-20:],
+                                started_at=started_at,
+                            )
+                        )
+                completed_categories.append(category)
+
+            self.db.prune_rejected_history(current_scan_id=scan_id)
+            return sorted(results, key=lambda item: (item.qualified, item.weather_trade_ratio, item.pnl or 0.0), reverse=True)
+        finally:
+            self._write_scan_state(
+                self._scan_state_payload(
+                    running=False,
+                    scan_id=scan_id,
+                    total_candidates=total_candidates,
+                    completed_candidates=completed_candidates,
+                    active_category=None,
+                    category_totals=category_totals,
+                    category_completed=category_completed,
+                    completed_categories=completed_categories,
+                    errors=errors[-20:],
+                    started_at=started_at,
+                    finished_at=time(),
+                )
+            )
 
     def analyze_wallet(self, address: str, source: str = 'custom_wallet') -> dict:
         weather_terms, _ = self.discover_weather_market_terms()

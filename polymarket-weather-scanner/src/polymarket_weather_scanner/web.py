@@ -31,6 +31,9 @@ class ScannerWebHandler(SimpleHTTPRequestHandler):
         if parsed.path == '/api/wallet':
             self.handle_wallet(parsed.query)
             return
+        if parsed.path == '/api/scan-state':
+            self.handle_scan_state()
+            return
         if parsed.path == '/health':
             self.write_json({'ok': True})
             return
@@ -86,6 +89,9 @@ class ScannerWebHandler(SimpleHTTPRequestHandler):
             self.write_json({'error': 'wallet not found'}, status=404)
             return
         self.write_json(row)
+
+    def handle_scan_state(self) -> None:
+        self.write_json(self.scanner.read_scan_state())
 
     def handle_add_wallet(self) -> None:
         try:

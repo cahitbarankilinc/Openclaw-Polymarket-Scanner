@@ -101,6 +101,39 @@ class ScannerDatabase:
             cursor = conn.execute('INSERT INTO scans DEFAULT VALUES')
             return int(cursor.lastrowid)
 
+    @staticmethod
+    def _result_tuple(scan_id: int, result: WalletScanResult) -> tuple:
+        return (
+            scan_id,
+            result.address,
+            result.username,
+            result.pnl,
+            result.distinct_markets_traded,
+            result.last_trade_count,
+            result.sell_trade_count,
+            result.buy_trade_count,
+            result.weather_trade_count,
+            result.weather_trade_ratio,
+            1 if result.qualified else 0,
+            result.qualification_reason,
+            result.source,
+            json.dumps(result.to_dict(), ensure_ascii=False, sort_keys=True),
+        )
+
+    def save_result(self, scan_id: int, result: WalletScanResult) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                '''
+                INSERT INTO scan_results (
+                  scan_id, address, username, pnl, distinct_markets_traded,
+                  last_trade_count, sell_trade_count, buy_trade_count,
+                  weather_trade_count, weather_trade_ratio, qualified,
+                  qualification_reason, source, payload_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''',
+                self._result_tuple(scan_id, result),
+            )
+
     def save_results(self, scan_id: int, results: Iterable[WalletScanResult]) -> None:
         with self.connect() as conn:
             conn.executemany(
@@ -112,25 +145,7 @@ class ScannerDatabase:
                   qualification_reason, source, payload_json
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''',
-                [
-                    (
-                        scan_id,
-                        result.address,
-                        result.username,
-                        result.pnl,
-                        result.distinct_markets_traded,
-                        result.last_trade_count,
-                        result.sell_trade_count,
-                        result.buy_trade_count,
-                        result.weather_trade_count,
-                        result.weather_trade_ratio,
-                        1 if result.qualified else 0,
-                        result.qualification_reason,
-                        result.source,
-                        json.dumps(result.to_dict(), ensure_ascii=False, sort_keys=True),
-                    )
-                    for result in results
-                ],
+                [self._result_tuple(scan_id, result) for result in results],
             )
 
     def prune_rejected_history(self, current_scan_id: int) -> None:

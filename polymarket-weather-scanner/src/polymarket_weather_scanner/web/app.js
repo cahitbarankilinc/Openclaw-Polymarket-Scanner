@@ -9,6 +9,7 @@ const STATIC_CATEGORY_ORDER = ['favs', 'all', 'politics', 'sports', 'crypto', 'f
 const state = {
   items: [],
   summary: null,
+  scanState: null,
   bucketSort: null,
   activeCategory: 'all',
   favorites: new Set(loadFavorites()),
@@ -35,23 +36,51 @@ function setRefreshProgress(value, text = '') {
   refreshProgress.textContent = text || (value > 0 && value < 100 ? `%${value}` : '');
 }
 
+function renderScanProgress() {
+  const scan = state.scanState;
+  if (!scan) {
+    setRefreshProgress(0, '');
+    return;
+  }
+  if (scan.running) {
+    const percent = Number(scan.percent || 0);
+    const activeCategory = categoryLabel(normalizeCategory(scan.active_category || ''));
+    const completed = Number(scan.completed_candidates || 0);
+    const total = Number(scan.total_candidates || 0);
+    const detail = activeCategory && activeCategory !== 'Unknown'
+      ? ` · ${activeCategory} ${completed}/${total}`
+      : ` · ${completed}/${total}`;
+    setRefreshProgress(percent, `%${percent}${detail}`);
+    return;
+  }
+  if (Number(scan.percent || 0) >= 100 && Number(scan.total_candidates || 0) > 0) {
+    setRefreshProgress(100, '%100');
+    setTimeout(() => {
+      if (!state.scanState?.running) setRefreshProgress(0, '');
+    }, 1200);
+    return;
+  }
+  setRefreshProgress(0, '');
+}
+
 async function load() {
   refreshButton.disabled = true;
   try {
     setRefreshProgress(10);
     const summaryRes = await fetch('/api/summary');
-    setRefreshProgress(45);
+    setRefreshProgress(30);
     const resultsRes = await fetch('/api/results?limit=5000');
-    setRefreshProgress(75);
+    setRefreshProgress(50);
+    const scanStateRes = await fetch('/api/scan-state');
+    setRefreshProgress(70);
     state.summary = await summaryRes.json();
-    setRefreshProgress(88);
     state.items = await resultsRes.json();
+    state.scanState = await scanStateRes.json();
     if (!availableCategories().includes(state.activeCategory)) state.activeCategory = 'all';
     renderSummary();
     renderCategories();
     renderList();
-    setRefreshProgress(100, '%100');
-    setTimeout(() => setRefreshProgress(0, ''), 600);
+    renderScanProgress();
   } finally {
     refreshButton.disabled = false;
   }
@@ -490,4 +519,17 @@ walletAddressInput.addEventListener('keydown', (event) => {
     addWallet();
   }
 });
+setInterval(async () => {
+  try {
+    const res = await fetch('/api/scan-state');
+    state.scanState = await res.json();
+    renderScanProgress();
+    if (state.scanState?.running) {
+      await load();
+    }
+  } catch (error) {
+    console.error(error);
+  }
+}, 2500);
+
 load().catch((error) => { console.error(error); walletList.innerHTML = '<div class="panel empty-state">Veri yüklenemedi</div>'; });
