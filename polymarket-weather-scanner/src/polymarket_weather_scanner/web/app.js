@@ -147,7 +147,6 @@ function initBucketFilters() {
   bucketFiltersGrid.innerHTML = `
     <div class="bucket-filter-side">
       <div class="bucket-filter-side-inner">
-        <div class="bucket-filter-side-title">Filtre alanı</div>
         <div class="bucket-filter-row-labels">
           <div class="bucket-filter-row-label">Win Rate</div>
           <div class="bucket-filter-row-label">Activity</div>
@@ -236,15 +235,30 @@ function renderBucketFilterCard(index, label) {
   `;
 }
 
+function isDeepCategory(category) {
+  return String(category || '').endsWith('_deep') || category === 'weather_deep' || category === 'custom_deep';
+}
+
+function getStageProgress(stage) {
+  const scan = state.scanState || {};
+  const totals = scan.category_totals || {};
+  const completed = scan.category_completed || {};
+  const entries = Object.keys(totals).filter((key) => stage === 1 ? !isDeepCategory(key) : isDeepCategory(key));
+  const total = entries.reduce((sum, key) => sum + Number(totals[key] || 0), 0);
+  const done = entries.reduce((sum, key) => sum + Math.min(Number(completed[key] || 0), Number(totals[key] || 0)), 0);
+  const percent = total ? Math.floor((done / total) * 100) : 0;
+  return { done, total, percent };
+}
+
 function renderSummary() {
   summaryCards.innerHTML = '';
+  const stage1 = getStageProgress(1);
+  const stage2 = getStageProgress(2);
   const cards = [
     ['Toplam sonuç', state.summary.total],
     ['Qualified', state.summary.qualified],
-    ['Ort. win rate', formatPercent(state.summary.avg_win_rate)],
-    ['Ort. PnL', formatMoney(state.summary.avg_pnl)],
-    ['Ort. weather ratio', formatPercent(state.summary.avg_weather_ratio)],
-    ['En yüksek markets', formatInt(state.summary.top_markets)],
+    ['Stage 1', `${stage1.percent}%`],
+    ['Stage 2', `${stage2.percent}%`],
   ];
   for (const [label, value] of cards) {
     const node = summaryCardTemplate.content.firstElementChild.cloneNode(true);
