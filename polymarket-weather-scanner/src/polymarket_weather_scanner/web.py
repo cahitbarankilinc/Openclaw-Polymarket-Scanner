@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import contextlib
 import json
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from threading import Lock, Thread
 from urllib.parse import parse_qs, urlparse
+import contextlib
 
 from .config import APP_DIR
 from .database import ScannerDatabase
@@ -16,9 +15,6 @@ WEB_DIR = Path(__file__).with_name('web')
 
 
 class ScannerWebHandler(SimpleHTTPRequestHandler):
-    scan_lock = Lock()
-    scan_thread: Thread | None = None
-
     def __init__(self, *args, db: ScannerDatabase, web_dir: Path, scanner: WeatherWalletScanner, **kwargs):
         self.db = db
         self.web_dir = web_dir
@@ -45,9 +41,6 @@ class ScannerWebHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == '/api/custom-wallets':
             self.handle_add_wallet()
-            return
-        if parsed.path == '/api/scan':
-            self.handle_scan()
             return
         self.write_json({'error': 'not found'}, status=404)
 
@@ -80,26 +73,6 @@ class ScannerWebHandler(SimpleHTTPRequestHandler):
 
     def handle_scan_state(self) -> None:
         self.write_json(self.scanner.read_scan_state())
-
-    def handle_scan(self) -> None:
-        with self.__class__.scan_lock:
-            existing = self.__class__.scan_thread
-            if existing and existing.is_alive():
-                self.write_json({'ok': True, 'started': False, 'running': True, 'message': 'scan already running'}, status=202)
-                return
-
-            def run_scan() -> None:
-                try:
-                    self.scanner.scan()
-                finally:
-                    with self.__class__.scan_lock:
-                        self.__class__.scan_thread = None
-
-            thread = Thread(target=run_scan, daemon=True, name='scanner-web-refresh')
-            self.__class__.scan_thread = thread
-            thread.start()
-
-        self.write_json({'ok': True, 'started': True, 'running': True}, status=202)
 
     def handle_add_wallet(self) -> None:
         try:
