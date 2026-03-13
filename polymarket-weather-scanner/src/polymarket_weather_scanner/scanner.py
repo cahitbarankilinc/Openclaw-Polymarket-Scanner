@@ -59,6 +59,8 @@ class WeatherWalletScanner:
         finished_at: float | None = None,
     ) -> dict:
         percent = int((completed_candidates / total_candidates) * 100) if total_candidates else 0
+        if total_candidates and completed_candidates and percent == 0:
+            percent = 1
         return {
             'running': running,
             'scan_id': scan_id,
