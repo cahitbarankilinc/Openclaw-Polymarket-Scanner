@@ -13,6 +13,8 @@ const state = {
   bucketSort: null,
   activeCategory: 'all',
   favorites: new Set(loadFavorites()),
+  loading: false,
+  lastFullLoadAt: 0,
 };
 const summaryCards = document.getElementById('summaryCards');
 const summaryCardTemplate = document.getElementById('summaryCardTemplate');
@@ -63,25 +65,29 @@ function renderScanProgress() {
   setRefreshProgress(0, '');
 }
 
-async function load() {
+async function load(force = false) {
+  if (state.loading) return;
+  state.loading = true;
   refreshButton.disabled = true;
   try {
     setRefreshProgress(10);
     const summaryRes = await fetch('/api/summary');
-    setRefreshProgress(30);
+    setRefreshProgress(35);
     const resultsRes = await fetch('/api/results?limit=5000');
-    setRefreshProgress(50);
+    setRefreshProgress(60);
     const scanStateRes = await fetch('/api/scan-state');
-    setRefreshProgress(70);
+    setRefreshProgress(80);
     state.summary = await summaryRes.json();
     state.items = await resultsRes.json();
     state.scanState = await scanStateRes.json();
+    state.lastFullLoadAt = Date.now();
     if (!availableCategories().includes(state.activeCategory)) state.activeCategory = 'all';
     renderSummary();
     renderCategories();
     renderList();
     renderScanProgress();
   } finally {
+    state.loading = false;
     refreshButton.disabled = false;
   }
 }
@@ -251,6 +257,7 @@ function getStageProgress(stage) {
 }
 
 function renderSummary() {
+  if (!state.summary) return;
   summaryCards.innerHTML = '';
   const stage1 = getStageProgress(1);
   const stage2 = getStageProgress(2);
@@ -538,10 +545,13 @@ walletAddressInput.addEventListener('keydown', (event) => {
 });
 setInterval(async () => {
   try {
+    if (state.loading) return;
     const res = await fetch('/api/scan-state');
     state.scanState = await res.json();
     renderScanProgress();
-    if (state.scanState?.running) {
+    renderSummary();
+    const shouldRefreshData = state.scanState?.running && (Date.now() - state.lastFullLoadAt > 10000);
+    if (shouldRefreshData) {
       await load();
     }
   } catch (error) {

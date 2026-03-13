@@ -4,6 +4,7 @@ import json
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+import contextlib
 
 from .config import APP_DIR
 from .database import ScannerDatabase
@@ -130,7 +131,8 @@ class ScannerWebHandler(SimpleHTTPRequestHandler):
         self.send_header('Content-Length', str(len(body)))
         self.send_header('Cache-Control', 'no-store')
         self.end_headers()
-        self.wfile.write(body)
+        with contextlib.suppress(BrokenPipeError, ConnectionResetError):
+            self.wfile.write(body)
 
 
 def average(values: list[float | None]) -> float:

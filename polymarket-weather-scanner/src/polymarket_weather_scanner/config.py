@@ -32,6 +32,7 @@ class ScannerConfig:
     max_workers: int = 8
     stage1_workers: int = 16
     stage2_leaderboard_per_category: int = 100
+    stage2_weather_deep_limit: int = 250
     enable_event_trade_seeding: bool = True
     seed_event_trade_limit: int = 100
     max_seed_events: int = 50

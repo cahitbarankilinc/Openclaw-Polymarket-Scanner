@@ -30,10 +30,16 @@ class WeatherWalletScanner:
         self.db = ScannerDatabase(self.config.db_path)
         self.db.init()
         self._state_lock = Lock()
+        self._db_write_lock = Lock()
 
     def _write_scan_state(self, payload: dict) -> None:
-        self.config.scan_state_path.parent.mkdir(parents=True, exist_ok=True)
-        self.config.scan_state_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
+        with self._state_lock:
+            self.config.scan_state_path.parent.mkdir(parents=True, exist_ok=True)
+            self.config.scan_state_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
+
+    def _save_result_threadsafe(self, scan_id: int, result: WalletScanResult) -> None:
+        with self._db_write_lock:
+            self.db.save_result(scan_id, result)
 
     def read_scan_state(self) -> dict:
         if not self.config.scan_state_path.exists():
@@ -335,7 +341,7 @@ class WeatherWalletScanner:
         stage1_groups: list[tuple[str, list[CandidateWallet]]] = list(leaderboard_groups.items())
         stage2_groups: list[tuple[str, list[CandidateWallet]]] = [
             *[(f'{category}_deep', sorted(candidates, key=lambda item: item.pnl or 0.0, reverse=True)[: self.config.stage2_leaderboard_per_category]) for category, candidates in leaderboard_groups.items()],
-            ('weather_deep', event_candidates),
+            ('weather_deep', event_candidates[: self.config.stage2_weather_deep_limit]),
             ('custom_deep', custom_candidates),
         ]
 
@@ -384,7 +390,7 @@ class WeatherWalletScanner:
                 for candidate in candidates:
                     try:
                         result = self.build_seed_result(candidate)
-                        self.db.save_result(scan_id, result)
+                        self._save_result_threadsafe(scan_id, result)
                         results.append(result)
                     except Exception as exc:  # noqa: BLE001
                         errors.append(f'{category}: {exc}')
@@ -429,7 +435,7 @@ class WeatherWalletScanner:
                     for future in as_completed(futures):
                         try:
                             result = future.result()
-                            self.db.save_result(scan_id, result)
+                            self._save_result_threadsafe(scan_id, result)
                             results.append(result)
                         except Exception as exc:  # noqa: BLE001
                             errors.append(f'{category}: {exc}')
