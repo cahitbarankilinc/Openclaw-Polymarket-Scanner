@@ -176,7 +176,7 @@ class ScannerDatabase:
                 SELECT sr.*
                 FROM scan_results sr
                 WHERE sr.scan_id = ?
-                ORDER BY sr.qualified DESC, sr.weather_trade_ratio DESC, sr.pnl DESC
+                ORDER BY sr.qualified DESC, sr.pnl DESC
                 ''',
                 (latest_scan_id,),
             ).fetchall()
@@ -234,36 +234,11 @@ class ScannerDatabase:
             rows.sort(
                 key=lambda row: (
                     self._row_payload(row).get('qualified', False),
-                    self._row_payload(row).get('weather_trade_ratio', 0.0),
                     self._row_payload(row).get('pnl') or 0.0,
                 ),
                 reverse=True,
             )
             return rows[:limit]
-
-    def latest_result_by_address(self, address: str) -> sqlite3.Row | None:
-        with self.connect() as conn:
-            custom = conn.execute(
-                '''
-                SELECT *
-                FROM custom_wallet_results
-                WHERE lower(address) = lower(?)
-                ORDER BY id DESC
-                LIMIT 1
-                ''',
-                (address,),
-            ).fetchone()
-            scan = conn.execute(
-                '''
-                SELECT sr.*
-                FROM scan_results sr
-                WHERE lower(sr.address) = lower(?)
-                ORDER BY sr.qualified DESC, sr.id DESC
-                LIMIT 1
-                ''',
-                (address,),
-            ).fetchone()
-            return self._prefer_row(scan, custom)
 
     def add_custom_wallet(self, address: str, label: str | None = None) -> None:
         with self.connect() as conn:

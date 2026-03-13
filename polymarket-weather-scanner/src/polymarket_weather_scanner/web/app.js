@@ -376,7 +376,7 @@ function renderWalletCard(item) {
   const favorite = isFavorite(item.address);
   const rejectedReason = !item.qualified ? (item.qualification_reason || 'No rejection reason available') : '';
   return `
-    <a class="panel wallet-card" href="/wallet/${item.address}">
+    <div class="panel wallet-card">
       <div class="wallet-main">
         <div>
           <div class="wallet-title-row">
@@ -398,8 +398,7 @@ function renderWalletCard(item) {
             <span>Lost: ${formatInt(win.losses)}</span>
             <span>Sample: ${formatInt(win.analyzed_closed_positions)}</span>
             <span>PnL: ${formatMoney(item.pnl)}</span>
-            <span>Weather ratio: ${formatPercent(item.weather_trade_ratio)}</span>
-            <span>Markets: ${formatInt(item.distinct_markets_traded)}</span>
+            <span>Trades: ${formatInt(item.last_trade_count)}</span>
             <span>Source: ${escapeHtml(item.source || '—')}</span>
           </div>
         </div>
@@ -407,7 +406,7 @@ function renderWalletCard(item) {
           ${grouped.map(renderGroupedBucket).join('')}
         </div>
       </div>
-    </a>
+    </div>
   `;
 }
 

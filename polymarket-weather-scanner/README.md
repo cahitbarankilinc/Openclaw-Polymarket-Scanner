@@ -5,7 +5,6 @@ API-first scanner for discovering Polymarket wallets that:
 - have traded at least 200 distinct markets
 - have **no SELL** in their last 500 `TRADE` activities
 - have **positive account-wide PnL**
-- retain weather analytics fields for later filtering/ranking
 
 ## Why this exists
 
@@ -25,7 +24,7 @@ A wallet qualifies when all of these are true:
 2. Among the last 500 `TRADE` activities, `SELL` count is 0
 3. Account-wide PnL is positive
 
-`weather_trade_count` and `weather_trade_ratio` are still computed and stored, but they are **not** currently used as qualification filters.
+Weather seeding is still used for discovery, but weather-specific ratio metrics are no longer surfaced in the main UI.
 
 ## Candidate seeding
 

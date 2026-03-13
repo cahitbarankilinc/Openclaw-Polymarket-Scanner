@@ -29,18 +29,12 @@ class ScannerWebHandler(SimpleHTTPRequestHandler):
         if parsed.path == '/api/summary':
             self.handle_summary()
             return
-        if parsed.path == '/api/wallet':
-            self.handle_wallet(parsed.query)
-            return
         if parsed.path == '/api/scan-state':
             self.handle_scan_state()
             return
         if parsed.path == '/health':
             self.write_json({'ok': True})
             return
-        if parsed.path.startswith('/wallet/'):
-            self.path = '/wallet.html'
-            return super().do_GET()
         super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802
@@ -70,26 +64,12 @@ class ScannerWebHandler(SimpleHTTPRequestHandler):
             'total': len(rows),
             'qualified': len(qualified),
             'avg_pnl': average([row['pnl'] for row in rows]),
-            'avg_weather_ratio': average([row['weather_trade_ratio'] for row in rows]),
             'avg_win_rate': average([((row.get('win_stats') or {}).get('win_rate')) for row in rows]),
             'top_pnl': max((row['pnl'] or 0.0) for row in rows) if rows else 0.0,
-            'top_markets': max((row['distinct_markets_traded'] for row in rows), default=0),
             'sources': sorted({row['source'] or 'unknown' for row in rows}),
             'categories': category_counts,
         }
         self.write_json(summary)
-
-    def handle_wallet(self, query_string: str) -> None:
-        params = parse_qs(query_string)
-        address = params.get('address', [''])[0].strip().lower()
-        if not address:
-            self.write_json({'error': 'address is required'}, status=400)
-            return
-        row = self.scanner.latest_result_by_address(address)
-        if row is None:
-            self.write_json({'error': 'wallet not found'}, status=404)
-            return
-        self.write_json(row)
 
     def handle_scan_state(self) -> None:
         self.write_json(self.scanner.read_scan_state())

@@ -43,7 +43,7 @@ class ScannerTests(unittest.TestCase):
             scanner.export(out, fmt='csv', qualified_only=True, limit=1)
             self.assertTrue(out.exists())
 
-    def test_calculate_win_stats_groups_and_five_cent_buckets(self) -> None:
+    def test_calculate_win_stats_grouped_buckets(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             scanner = StubScanner(Path(tmp))
             scanner.client.closed_positions_all = lambda user, max_items=500: [

@@ -195,22 +195,16 @@ class WeatherWalletScanner:
 
     def calculate_win_stats(self, candidate: CandidateWallet, rows: list[dict] | None = None) -> WalletWinStats:
         rows = rows if rows is not None else self.client.closed_positions_all(candidate.address, max_items=self.config.closed_positions_limit)
-        five_cent = [BucketStat(label=f'{start}-{start + 5}¢', start_cents=start, end_cents=start + 5) for start in range(0, 100, 5)]
         grouped = [BucketStat(label=label, start_cents=start, end_cents=end) for (label, start, end) in GROUPED_BUCKETS]
         wins = 0
         losses = 0
 
         for row in rows:
             cents = self._price_to_cents(row.get('avgPrice'))
-            bucket_index = min(cents // 5, len(five_cent) - 1)
             is_win = float(row.get('realizedPnl') or 0.0) > 0.0
-            target = five_cent[bucket_index]
-            target.total += 1
             if is_win:
-                target.wins += 1
                 wins += 1
             else:
-                target.losses += 1
                 losses += 1
 
             for group in grouped:
@@ -229,7 +223,6 @@ class WeatherWalletScanner:
             losses=losses,
             win_rate=(wins / total) if total else 0.0,
             grouped_buckets=[bucket.to_dict() for bucket in grouped],
-            five_cent_buckets=[bucket.to_dict() for bucket in five_cent],
         )
 
     def build_seed_result(self, candidate: CandidateWallet) -> WalletScanResult:
@@ -237,12 +230,9 @@ class WeatherWalletScanner:
             address=candidate.address,
             username=candidate.username,
             pnl=float(candidate.pnl) if candidate.pnl is not None else 0.0,
-            distinct_markets_traded=0,
             last_trade_count=0,
             sell_trade_count=0,
             buy_trade_count=0,
-            weather_trade_count=0,
-            weather_trade_ratio=0.0,
             qualified=False,
             qualification_reason='seed_only_pending_deep_scan',
             source=candidate.source,
@@ -253,7 +243,6 @@ class WeatherWalletScanner:
                 losses=0,
                 win_rate=0.0,
                 grouped_buckets=[BucketStat(label=label, start_cents=start, end_cents=end).to_dict() for (label, start, end) in GROUPED_BUCKETS],
-                five_cent_buckets=[BucketStat(label=f'{start}-{start + 5}¢', start_cents=start, end_cents=start + 5).to_dict() for start in range(0, 100, 5)],
             ).to_dict(),
         )
 
@@ -263,9 +252,7 @@ class WeatherWalletScanner:
         trade_rows = [row for row in activity if row.get('type') == 'TRADE']
         sell_trade_count = sum(1 for row in trade_rows if str(row.get('side') or '').upper() == 'SELL')
         buy_trade_count = sum(1 for row in trade_rows if str(row.get('side') or '').upper() == 'BUY')
-        weather_trade_count = sum(1 for row in trade_rows if self._matches_weather(row, weather_terms))
         last_trade_count = len(trade_rows)
-        weather_trade_ratio = (weather_trade_count / last_trade_count) if last_trade_count else 0.0
         closed_positions = self.client.closed_positions_all(candidate.address, max_items=self.config.closed_positions_limit)
         open_positions: list[dict] = []
         try:
@@ -300,13 +287,6 @@ class WeatherWalletScanner:
         if pnl_value is None or pnl_value <= self.config.minimum_positive_pnl:
             qualified = False
             reasons.append('non_positive_pnl')
-        if self.config.enforce_weather_filters:
-            if weather_trade_count < self.config.minimum_weather_trade_count:
-                qualified = False
-                reasons.append(f'weather_trade_count<{self.config.minimum_weather_trade_count}')
-            if weather_trade_ratio < self.config.minimum_weather_trade_ratio:
-                qualified = False
-                reasons.append(f'weather_trade_ratio<{self.config.minimum_weather_trade_ratio:.2f}')
         if not trade_rows:
             qualified = False
             reasons.append('no_trade_rows')
@@ -319,8 +299,8 @@ class WeatherWalletScanner:
             last_trade_count=last_trade_count,
             sell_trade_count=sell_trade_count,
             buy_trade_count=buy_trade_count,
-            weather_trade_count=weather_trade_count,
-            weather_trade_ratio=weather_trade_ratio,
+            weather_trade_count=0,
+            weather_trade_ratio=0.0,
             qualified=qualified,
             qualification_reason='qualified' if qualified else ','.join(reasons),
             source=candidate.source,
@@ -472,7 +452,7 @@ class WeatherWalletScanner:
                 completed_categories.append(category)
 
             self.db.prune_rejected_history(current_scan_id=scan_id)
-            return sorted(results, key=lambda item: (item.qualified, item.weather_trade_ratio, item.pnl or 0.0), reverse=True)
+            return sorted(results, key=lambda item: (item.qualified, item.pnl or 0.0), reverse=True)
         finally:
             self._write_scan_state(
                 self._scan_state_payload(
@@ -501,12 +481,6 @@ class WeatherWalletScanner:
 
     def latest_results(self, qualified_only: bool = False, limit: int = 100) -> list[dict]:
         return [json.loads(row['payload_json']) for row in self.db.latest_results(qualified_only=qualified_only, limit=limit)]
-
-    def latest_result_by_address(self, address: str) -> dict | None:
-        row = self.db.latest_result_by_address(address)
-        if row is None:
-            return None
-        return json.loads(row['payload_json'])
 
     def export(self, out_path: Path, fmt: str = 'json', qualified_only: bool = True, limit: int = 100) -> Path:
         rows = self.latest_results(qualified_only=qualified_only, limit=limit)

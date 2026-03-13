@@ -41,7 +41,6 @@ class WalletWinStats:
     losses: int
     win_rate: float
     grouped_buckets: list[dict[str, Any]] = field(default_factory=list)
-    five_cent_buckets: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -52,15 +51,15 @@ class WalletScanResult:
     address: str
     username: str | None
     pnl: float | None
-    distinct_markets_traded: int
-    last_trade_count: int
-    sell_trade_count: int
-    buy_trade_count: int
-    weather_trade_count: int
-    weather_trade_ratio: float
-    qualified: bool
-    qualification_reason: str
-    source: str | None
+    distinct_markets_traded: int = 0
+    last_trade_count: int = 0
+    sell_trade_count: int = 0
+    buy_trade_count: int = 0
+    weather_trade_count: int = 0
+    weather_trade_ratio: float = 0.0
+    qualified: bool = False
+    qualification_reason: str = ''
+    source: str | None = None
     source_category: str | None = None
     win_stats: dict[str, Any] | None = None
 
