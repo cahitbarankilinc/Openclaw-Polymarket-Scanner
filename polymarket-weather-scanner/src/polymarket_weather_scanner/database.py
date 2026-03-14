@@ -66,6 +66,11 @@ class ScannerDatabase:
         return json.loads(row['payload_json'])
 
     @classmethod
+    def _is_seed_only_row(cls, row: sqlite3.Row) -> bool:
+        payload = cls._row_payload(row)
+        return str(payload.get('qualification_reason') or '') == 'seed_only_pending_deep_scan'
+
+    @classmethod
     def _row_score(cls, row: sqlite3.Row) -> tuple:
         payload = cls._row_payload(row)
         source = str(payload.get('source') or '')
@@ -211,17 +216,23 @@ class ScannerDatabase:
             ).fetchall()
 
             merged: dict[str, sqlite3.Row] = {}
+            seen_in_latest_scan: set[str] = set()
             for row in scan_rows:
+                if self._is_seed_only_row(row):
+                    continue
                 payload = self._row_payload(row)
                 if qualified_only and not payload.get('qualified'):
                     continue
                 key = str(row['address']).lower()
+                seen_in_latest_scan.add(key)
                 merged[key] = self._prefer_row(merged.get(key), row)
             for row in historical_qualified_rows:
                 payload = self._row_payload(row)
                 if qualified_only and not payload.get('qualified'):
                     continue
                 key = str(row['address']).lower()
+                if key in seen_in_latest_scan:
+                    continue
                 merged[key] = self._prefer_row(merged.get(key), row)
             for row in custom_rows:
                 payload = self._row_payload(row)

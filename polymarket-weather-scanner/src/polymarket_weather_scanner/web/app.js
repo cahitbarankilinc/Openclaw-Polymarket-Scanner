@@ -257,16 +257,29 @@ function getStageProgress(stage) {
   return { done, total, percent };
 }
 
+function getOverallScanProgress() {
+  const scan = state.scanState || {};
+  const total = Number(scan.total_candidates || 0);
+  const done = total ? Math.min(Number(scan.completed_candidates || 0), total) : 0;
+  const percent = total ? Math.floor((done / total) * 100) : Number(scan.percent || 0);
+  return { done, total, percent };
+}
+
+function formatProgress(value) {
+  if (!value || !value.total) return '0/0 (%0)';
+  return `${formatInt(value.done)}/${formatInt(value.total)} (%${value.percent})`;
+}
+
 function renderSummary() {
   if (!state.summary) return;
   summaryCards.innerHTML = '';
-  const stage1 = getStageProgress(1);
-  const stage2 = getStageProgress(2);
+  const analyzed = getStageProgress(2);
+  const overall = getOverallScanProgress();
   const cards = [
     ['Toplam sonuç', state.summary.total],
     ['Qualified', state.summary.qualified],
-    ['Stage 1', `${stage1.percent}%`],
-    ['Stage 2', `${stage2.percent}%`],
+    ['Hesaplanan', formatProgress(analyzed)],
+    ['Genel tarama', formatProgress(overall)],
   ];
   for (const [label, value] of cards) {
     const node = summaryCardTemplate.content.firstElementChild.cloneNode(true);
