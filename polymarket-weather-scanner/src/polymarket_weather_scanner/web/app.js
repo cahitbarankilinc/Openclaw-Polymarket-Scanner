@@ -246,11 +246,11 @@ function isDeepCategory(category) {
   return String(category || '').endsWith('_deep') || category === 'weather_deep' || category === 'custom_deep';
 }
 
-function getStageProgress(stage) {
+function getAnalyzedProgress() {
   const scan = state.scanState || {};
   const totals = scan.category_totals || {};
   const completed = scan.category_completed || {};
-  const entries = Object.keys(totals).filter((key) => stage === 1 ? !isDeepCategory(key) : isDeepCategory(key));
+  const entries = Object.keys(totals);
   const total = entries.reduce((sum, key) => sum + Number(totals[key] || 0), 0);
   const done = entries.reduce((sum, key) => sum + Math.min(Number(completed[key] || 0), Number(totals[key] || 0)), 0);
   const percent = total ? Math.floor((done / total) * 100) : 0;
@@ -273,7 +273,7 @@ function formatProgress(value) {
 function renderSummary() {
   if (!state.summary) return;
   summaryCards.innerHTML = '';
-  const analyzed = getStageProgress(2);
+  const analyzed = getAnalyzedProgress();
   const overall = getOverallScanProgress();
   const cards = [
     ['Toplam sonuç', state.summary.total],

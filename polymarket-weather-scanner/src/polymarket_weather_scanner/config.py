@@ -30,6 +30,7 @@ class ScannerConfig:
     activity_limit: int = 500
     closed_positions_limit: int = 500
     max_workers: int = 8
+    per_wallet_fetch_workers: int = 4
     stage1_workers: int = 16
     stage2_leaderboard_per_category: int = 100
     stage2_weather_deep_limit: int = 250

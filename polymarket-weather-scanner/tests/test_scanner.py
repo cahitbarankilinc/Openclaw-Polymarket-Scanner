@@ -142,6 +142,31 @@ class ScannerTests(unittest.TestCase):
             self.assertEqual(no_stats['wins'], 0)
             self.assertEqual(no_stats['losses'], 2)
 
+    def test_evaluate_candidate_uses_prefetched_open_and_closed_positions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            scanner = StubScanner(Path(tmp))
+            scanner._fetch_candidate_inputs = lambda candidate: {
+                'distinct_markets': 250,
+                'activity': [
+                    {'type': 'TRADE', 'side': 'BUY', 'name': 'tester'},
+                    {'type': 'TRADE', 'side': 'BUY', 'name': 'tester'},
+                ],
+                'closed_positions': [
+                    {'avgPrice': 0.10, 'realizedPnl': 5, 'outcome': 'Yes'},
+                ],
+                'open_positions': [
+                    {'avgPrice': 0.20, 'percentPnl': -100, 'outcome': 'No'},
+                ],
+            }
+            result = scanner.evaluate_candidate(CandidateWallet(address='0xabc', pnl=10), {'weather'})
+            self.assertTrue(result.qualified)
+            self.assertEqual(result.last_trade_count, 2)
+            self.assertEqual(result.buy_trade_count, 2)
+            self.assertEqual(result.sell_trade_count, 0)
+            self.assertEqual(result.win_stats['analyzed_closed_positions'], 1)
+            self.assertEqual(result.win_stats['analyzed_open_loss_positions'], 1)
+            self.assertEqual(result.win_stats['analyzed_positions'], 2)
+
 
 if __name__ == '__main__':
     unittest.main()

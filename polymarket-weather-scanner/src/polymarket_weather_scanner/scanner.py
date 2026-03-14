@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from pathlib import Path
 from threading import Lock
 from time import time
@@ -372,19 +372,42 @@ class WeatherWalletScanner:
             ).to_dict(),
         )
 
+    def _fetch_candidate_inputs(self, candidate: CandidateWallet) -> dict:
+        with ThreadPoolExecutor(max_workers=self.config.per_wallet_fetch_workers) as executor:
+            futures: dict[str, Future] = {
+                'distinct_markets': executor.submit(self.client.total_markets_traded, candidate.address),
+                'activity': executor.submit(self.client.user_activity, candidate.address, self.config.activity_limit),
+                'closed_positions': executor.submit(self.client.closed_positions_all, candidate.address, self.config.closed_positions_limit),
+                'open_positions': executor.submit(
+                    self.client.positions,
+                    candidate.address,
+                    500,
+                    0,
+                    'CURRENT',
+                    'asc',
+                ),
+            }
+            result: dict[str, object] = {}
+            for key, future in futures.items():
+                try:
+                    result[key] = future.result()
+                except Exception:
+                    if key == 'open_positions':
+                        result[key] = []
+                    else:
+                        raise
+            return result
+
     def evaluate_candidate(self, candidate: CandidateWallet, weather_terms: set[str]) -> WalletScanResult:
-        distinct_markets = self.client.total_markets_traded(candidate.address)
-        activity = self.client.user_activity(candidate.address, limit=self.config.activity_limit)
+        fetched = self._fetch_candidate_inputs(candidate)
+        distinct_markets = int(fetched['distinct_markets'])
+        activity = list(fetched['activity'])
         trade_rows = [row for row in activity if row.get('type') == 'TRADE']
         sell_trade_count = sum(1 for row in trade_rows if str(row.get('side') or '').upper() == 'SELL')
         buy_trade_count = sum(1 for row in trade_rows if str(row.get('side') or '').upper() == 'BUY')
         last_trade_count = len(trade_rows)
-        closed_positions = self.client.closed_positions_all(candidate.address, max_items=self.config.closed_positions_limit)
-        open_positions: list[dict] = []
-        try:
-            open_positions = self.client.positions(candidate.address, limit=500)
-        except Exception:
-            open_positions = []
+        closed_positions = list(fetched['closed_positions'])
+        open_positions = list(fetched.get('open_positions') or [])
 
         realized_pnl = sum(float(row.get('realizedPnl') or 0.0) for row in closed_positions)
         open_cash_pnl = sum(float(row.get('cashPnl') or 0.0) for row in open_positions)
@@ -459,16 +482,13 @@ class WeatherWalletScanner:
         seen_addresses.update(candidate.address for candidate in event_candidates)
         custom_candidates = self.seed_custom_candidates(seen_addresses)
 
-        stage1_groups: list[tuple[str, list[CandidateWallet]]] = list(leaderboard_groups.items())
         stage2_groups: list[tuple[str, list[CandidateWallet]]] = [
-            *[(f'{category}_deep', sorted(candidates, key=lambda item: item.pnl or 0.0, reverse=True)[: self.config.stage2_leaderboard_per_category]) for category, candidates in leaderboard_groups.items()],
-            ('weather_deep', event_candidates[: self.config.stage2_weather_deep_limit]),
+            *[(f'{category}_deep', sorted(candidates, key=lambda item: item.pnl or 0.0, reverse=True)) for category, candidates in leaderboard_groups.items()],
+            ('weather_deep', event_candidates),
             ('custom_deep', custom_candidates),
         ]
 
-        stage1_totals = {category: len(candidates) for category, candidates in stage1_groups}
-        stage2_totals = {category: len(candidates) for category, candidates in stage2_groups}
-        category_totals = {**stage1_totals, **stage2_totals}
+        category_totals = {category: len(candidates) for category, candidates in stage2_groups}
         total_candidates = sum(category_totals.values())
         category_completed = {category: 0 for category in category_totals}
         completed_categories: list[str] = []
@@ -482,7 +502,7 @@ class WeatherWalletScanner:
                 scan_id=scan_id,
                 total_candidates=total_candidates,
                 completed_candidates=0,
-                active_category=stage1_groups[0][0] if stage1_groups else None,
+                active_category=stage2_groups[0][0] if stage2_groups else None,
                 category_totals=category_totals,
                 category_completed=category_completed,
                 completed_categories=completed_categories,
@@ -492,46 +512,6 @@ class WeatherWalletScanner:
         )
 
         try:
-            for category, candidates in stage1_groups:
-                self._write_scan_state(
-                    self._scan_state_payload(
-                        running=True,
-                        scan_id=scan_id,
-                        total_candidates=total_candidates,
-                        completed_candidates=completed_candidates,
-                        active_category=category,
-                        category_totals=category_totals,
-                        category_completed=category_completed,
-                        completed_categories=completed_categories,
-                        errors=errors,
-                        started_at=started_at,
-                    )
-                )
-                for candidate in candidates:
-                    try:
-                        result = self.build_seed_result(candidate)
-                        self._save_result_threadsafe(scan_id, result)
-                        results.append(result)
-                    except Exception as exc:  # noqa: BLE001
-                        errors.append(f'{category}: {exc}')
-                    completed_candidates += 1
-                    category_completed[category] = category_completed.get(category, 0) + 1
-                completed_categories.append(category)
-                self._write_scan_state(
-                    self._scan_state_payload(
-                        running=True,
-                        scan_id=scan_id,
-                        total_candidates=total_candidates,
-                        completed_candidates=completed_candidates,
-                        active_category=category,
-                        category_totals=category_totals,
-                        category_completed=category_completed,
-                        completed_categories=completed_categories,
-                        errors=errors[-20:],
-                        started_at=started_at,
-                    )
-                )
-
             for category, candidates in stage2_groups:
                 self._write_scan_state(
                     self._scan_state_payload(
