@@ -1,148 +1,201 @@
 # Polymarket Weather Scanner
 
-API-first scanner for discovering Polymarket wallets that:
+Polymarket wallet scanner ve lokal dashboard.
 
-- have traded at least 200 distinct markets
-- have **no SELL** in their last 500 `TRADE` activities
-- have **positive account-wide PnL**
+Ana amaç:
+- wallet adaylarını keşfetmek
+- her wallet için trade / PnL / win-rate / bucket istatistiklerini hesaplamak
+- **closed positions** ve seçilmiş **open position losses** verilerini birlikte dashboard'da göstermek
 
-## Why this exists
+## Ne hesaplar?
 
-This project is built for continuous discovery of Polymarket wallets without depending on brittle browser scraping for the core signal pipeline.
-
-## Data sources
-
-- Gamma API: market discovery, public search, profiles
-- Data API: leaderboard, activity, traded market count, closed positions, positions, trades
-- Optional browser/manual verification later
+Scanner her wallet için özetle şunları toplar:
+- distinct markets traded
+- son aktivitelerde BUY / SELL dağılımı
+- closed positions win/loss istatistikleri
+- grouped bucket win-rate'leri
+- uygun open positions için ek loss/activity hesabı
 
 ## Open position handling
 
-Win-rate and bucket analytics now combine:
+Open position verileri doğrudan genel win-rate akışına dahil edilir.
 
-- **Closed positions** as before
-- **Open positions** only when `percentPnl` is between `-101` and `-95` (inclusive)
+Kurallar:
+- sadece `percentPnl` değeri **-101 ile -95** arasında olan open positions hesaba katılır
+- bu kayıtlar **loss** kabul edilir
+- bucket eşleşmesi için `avgPrice` kullanılır
+- bu kayıtlar **activity / sample** sayısına eklenir
+- bu aralık dışındaki open positions tamamen ignore edilir
 
-Those qualifying open positions are treated as synthetic **losses**:
+Yani sonuçta wallet için görülen `Sample`, `Lost` ve bucket activity değerleri:
+- closed positions
+- + qualifying open-loss positions
+birleşiminden oluşur.
 
-- non-matching open positions are ignored completely
-- matching rows increase the wallet's activity/sample counts
-- bucket placement uses **`avgPrice`**
-- grouped bucket totals and loss counts include them as if they were closed positions
+## Wallet qualification logic
 
-## Default logic
-
-A wallet qualifies when all of these are true:
-
+Bir wallet varsayılan olarak şu koşullarla qualified olur:
 1. `distinct_markets_traded >= 200`
-2. Among the last 500 `TRADE` activities, `SELL` count is 0
-3. Account-wide PnL is positive
+2. son `TRADE` aktivitelerinde `SELL` sayısı `0`
+3. genel PnL pozitif
 
-Weather seeding is still used for discovery, but weather-specific ratio metrics are no longer surfaced in the main UI.
+## Mimari notlar
 
-## Candidate seeding
+Güncel sürümde:
+- listede görünen wallet'lar gerçek analizden geçer
+- seed-only placeholder kayıtlar dashboard sonuçlarında gösterilmez
+- wallet değerlendirmesi sırasında şu istekler **paralel** çekilir:
+  - `total_markets_traded`
+  - `user_activity`
+  - `closed_positions_all`
+  - `open_positions`
+- frontend asset cache problemi azaltmak için static dosyalarda no-cache header kullanılır
 
-Wallet discovery now combines:
+## Proje yapısı
 
-- leaderboard seeds across multiple categories
-- multiple leaderboard offsets from `0` to `500`
-- weather event-trade seeding
-- optional custom wallet additions
+- `src/polymarket_weather_scanner/` — ana uygulama
+- `tests/` — testler
+- `data/` — sqlite db, export dosyaları, scan state
 
-Current default leaderboard categories:
+## Gereksinimler
 
-- WEATHER
-- POLITICS
-- SPORTS
-- CRYPTO
-- BUSINESS
-- POP_CULTURE
+Sıfır bir bilgisayarda sadece şunların kurulu olması yeterli:
+- Python 3
+- Node.js
 
-## Weather relevance analytics
+Not:
+- Bu proje şu an Python tarafında ek üçüncü parti paket gerektirmiyor
+- Node.js zorunlu çalışma bağımlılığı değil; ortamda kurulu olması yeterli
 
-Weather market discovery combines:
+## Sıfırdan kurulum
 
-- public keyword search over weather-related terms
-- matching against discovered weather market/event slugs
-- event-trade seeding over discovered weather events
-
-Current keyword set:
-
-- weather
-- temperature
-- rain
-- snow
-- hurricane
-- storm
-- forecast
-- climate
-
-## Frontend
-
-The local frontend reads the latest scan results from `data/scanner.db` and provides:
-
-- summary cards
-- search/filter/sort controls
-- grouped bucket filters
-- category sidebar (favs + custom + leaderboard categories)
-- wallet detail pages
-
-Qualified wallets are retained historically and continue to appear as long as they keep that title in stored data. Rejected rows from older scans are pruned when a new scan is saved.
-
-## Project layout
-
-- `src/polymarket_weather_scanner/` — scanner package
-- `tests/` — automated tests
-- `data/` — generated SQLite DB and exports
-
-## Quick start
+### 1) Repoyu klonla
 
 ```bash
+git clone <REPO_URL>
 cd polymarket-weather-scanner
+```
+
+### 2) Python sürümünü kontrol et
+
+```bash
+python3 --version
+```
+
+### 3) İsteğe bağlı sanal ortam oluştur
+
+macOS / Linux:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+Bu proje standart kütüphane ile çalıştığı için ekstra `pip install -r requirements.txt` adımı gerekmiyor.
+
+### 4) Testleri çalıştır
+
+```bash
+PYTHONPATH=src python3 -m unittest discover -s tests -v
+```
+
+Windows PowerShell:
+
+```powershell
+$env:PYTHONPATH = 'src'
+python -m unittest discover -s tests -v
+```
+
+## Çalıştırma
+
+### Full scan başlat
+
+```bash
 PYTHONPATH=src python3 -m polymarket_weather_scanner scan
+```
+
+### Sonuç raporu gör
+
+```bash
 PYTHONPATH=src python3 -m polymarket_weather_scanner report --limit 25
 ```
 
-## Commands
-
-### Run a full scan
-
-```bash
-PYTHONPATH=src python3 -m polymarket_weather_scanner scan
-```
-
-### Show top matches
-
-```bash
-PYTHONPATH=src python3 -m polymarket_weather_scanner report --limit 20
-```
-
-### Export latest qualifying wallets to JSON
+### JSON export
 
 ```bash
 PYTHONPATH=src python3 -m polymarket_weather_scanner export --format json --out data/latest-wallets.json
 ```
 
-### Export latest qualifying wallets to CSV
+### CSV export
 
 ```bash
 PYTHONPATH=src python3 -m polymarket_weather_scanner export --format csv --out data/latest-wallets.csv
 ```
 
-### Open local frontend
+### Dashboard / local web UI aç
 
 ```bash
 PYTHONPATH=src python3 -m polymarket_weather_scanner serve --host 127.0.0.1 --port 8765
 ```
 
-Then open:
+Ardından tarayıcıda aç:
 
 ```text
 http://127.0.0.1:8765
 ```
 
-## Notes
+## En hızlı günlük kullanım
 
-- Uses only Python stdlib right now
-- Keeps an audit-friendly local SQLite database
-- Designed to be scheduled later (cron/heartbeat/etc.)
+Bir terminalde dashboard server:
+
+```bash
+cd polymarket-weather-scanner
+PYTHONPATH=src python3 -m polymarket_weather_scanner serve --host 127.0.0.1 --port 8765
+```
+
+Başka terminalde scan:
+
+```bash
+cd polymarket-weather-scanner
+PYTHONPATH=src python3 -m polymarket_weather_scanner scan
+```
+
+## Kullanışlı notlar
+
+- `data/scanner.db` içinde sonuçlar tutulur
+- `data/scan-state.json` aktif scan progress bilgisini taşır
+- dashboard `Yenile` ile son sonuçları tekrar okur
+- stale frontend sorunu yaşamamak için static asset cache kapatılmıştır
+
+## Sorun giderme
+
+### Dashboard açık ama veri eski görünüyor
+
+Şunları sırayla dene:
+
+1. server'ı yeniden başlat
+2. sayfayı hard refresh yap
+3. yeni scan çalıştır
+
+### Port kullanımda
+
+Farklı port ile aç:
+
+```bash
+PYTHONPATH=src python3 -m polymarket_weather_scanner serve --host 127.0.0.1 --port 8787
+```
+
+### Test / import hatası
+
+Komutlarda `PYTHONPATH=src` kullandığından emin ol.
+
+## Lisans / not
+
+Dahili kullanım için geliştirildi; ihtiyaç oldukça genişletilebilir.
