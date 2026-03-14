@@ -36,11 +36,14 @@ class BucketStat:
 
 @dataclass
 class WalletWinStats:
+    analyzed_positions: int
     analyzed_closed_positions: int
+    analyzed_open_loss_positions: int
     wins: int
     losses: int
     win_rate: float
     grouped_buckets: list[dict[str, Any]] = field(default_factory=list)
+    outcome_stats: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

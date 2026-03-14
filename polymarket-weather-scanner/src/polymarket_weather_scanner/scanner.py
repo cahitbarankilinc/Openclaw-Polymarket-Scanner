@@ -20,6 +20,8 @@ GROUPED_BUCKETS = [
     ('65-85¢', 65, 85),
     ('85-100¢', 85, 101),
 ]
+OPEN_POSITION_LOSS_MIN = -101.0
+OPEN_POSITION_LOSS_MAX = -95.0
 
 
 class WeatherWalletScanner:
@@ -193,8 +195,61 @@ class WeatherWalletScanner:
         cents = int(value * 100)
         return max(0, min(100, cents))
 
-    def calculate_win_stats(self, candidate: CandidateWallet, rows: list[dict] | None = None) -> WalletWinStats:
+    @staticmethod
+    def _is_open_position_loss(row: dict) -> bool:
+        try:
+            percent_pnl = float(row.get('percentPnl'))
+        except (TypeError, ValueError):
+            return False
+        return OPEN_POSITION_LOSS_MIN <= percent_pnl <= OPEN_POSITION_LOSS_MAX
+
+    @staticmethod
+    def _normalized_outcome(row: dict) -> str:
+        return str(row.get('outcome') or '').strip()
+
+    @staticmethod
+    def _ensure_outcome_bucket_state(
+        outcome_key: str,
+        outcome_label: str,
+        outcome_grouped: dict[str, list[BucketStat]],
+        outcome_counts: dict[str, dict[str, int]],
+        outcome_labels: dict[str, str],
+    ) -> None:
+        if outcome_key in outcome_grouped:
+            return
+        outcome_grouped[outcome_key] = [BucketStat(label=label, start_cents=start, end_cents=end) for (label, start, end) in GROUPED_BUCKETS]
+        outcome_counts[outcome_key] = {'wins': 0, 'losses': 0, 'open_losses': 0}
+        outcome_labels[outcome_key] = outcome_label
+
+    @staticmethod
+    def _record_bucket_result(groups: list[BucketStat], cents: int, is_win: bool) -> None:
+        for group in groups:
+            if group.start_cents <= cents < group.end_cents:
+                group.total += 1
+                if is_win:
+                    group.wins += 1
+                else:
+                    group.losses += 1
+                break
+
+    def calculate_win_stats(
+        self,
+        candidate: CandidateWallet,
+        rows: list[dict] | None = None,
+        open_rows: list[dict] | None = None,
+    ) -> WalletWinStats:
         rows = rows if rows is not None else self.client.closed_positions_all(candidate.address, max_items=self.config.closed_positions_limit)
+        if open_rows is None:
+            try:
+                open_rows = self.client.positions(
+                    candidate.address,
+                    limit=500,
+                    sort_by='CURRENT',
+                    sort_direction='asc',
+                )
+            except Exception:
+                open_rows = []
+
         grouped = [BucketStat(label=label, start_cents=start, end_cents=end) for (label, start, end) in GROUPED_BUCKETS]
         wins = 0
         losses = 0
@@ -205,39 +260,38 @@ class WeatherWalletScanner:
         for row in rows:
             cents = self._price_to_cents(row.get('avgPrice'))
             is_win = float(row.get('realizedPnl') or 0.0) > 0.0
-            outcome = str(row.get('outcome') or '').strip()
+            outcome = self._normalized_outcome(row)
             if is_win:
                 wins += 1
             else:
                 losses += 1
 
-            for group in grouped:
-                if group.start_cents <= cents < group.end_cents:
-                    group.total += 1
-                    if is_win:
-                        group.wins += 1
-                    else:
-                        group.losses += 1
-                    break
+            self._record_bucket_result(grouped, cents, is_win)
 
             if outcome:
                 outcome_key = outcome.lower()
-                if outcome_key not in outcome_grouped:
-                    outcome_grouped[outcome_key] = [BucketStat(label=label, start_cents=start, end_cents=end) for (label, start, end) in GROUPED_BUCKETS]
-                    outcome_counts[outcome_key] = {'wins': 0, 'losses': 0}
-                    outcome_labels[outcome_key] = outcome
+                self._ensure_outcome_bucket_state(outcome_key, outcome, outcome_grouped, outcome_counts, outcome_labels)
                 if is_win:
                     outcome_counts[outcome_key]['wins'] += 1
                 else:
                     outcome_counts[outcome_key]['losses'] += 1
-                for group in outcome_grouped[outcome_key]:
-                    if group.start_cents <= cents < group.end_cents:
-                        group.total += 1
-                        if is_win:
-                            group.wins += 1
-                        else:
-                            group.losses += 1
-                        break
+                self._record_bucket_result(outcome_grouped[outcome_key], cents, is_win)
+
+        analyzed_open_loss_positions = 0
+        for row in open_rows:
+            if not self._is_open_position_loss(row):
+                continue
+            analyzed_open_loss_positions += 1
+            losses += 1
+            cents = self._price_to_cents(row.get('avgPrice'))
+            outcome = self._normalized_outcome(row)
+            self._record_bucket_result(grouped, cents, False)
+            if outcome:
+                outcome_key = outcome.lower()
+                self._ensure_outcome_bucket_state(outcome_key, outcome, outcome_grouped, outcome_counts, outcome_labels)
+                outcome_counts[outcome_key]['losses'] += 1
+                outcome_counts[outcome_key]['open_losses'] += 1
+                self._record_bucket_result(outcome_grouped[outcome_key], cents, False)
 
         total = wins + losses
         outcome_stats = {}
@@ -246,7 +300,9 @@ class WeatherWalletScanner:
             outcome_total = counts['wins'] + counts['losses']
             outcome_stats[outcome_key] = {
                 'outcome': outcome_labels[outcome_key],
-                'analyzed_closed_positions': outcome_total,
+                'analyzed_positions': outcome_total,
+                'analyzed_closed_positions': outcome_total - counts.get('open_losses', 0),
+                'analyzed_open_loss_positions': counts.get('open_losses', 0),
                 'wins': counts['wins'],
                 'losses': counts['losses'],
                 'win_rate': (counts['wins'] / outcome_total) if outcome_total else 0.0,
@@ -254,7 +310,9 @@ class WeatherWalletScanner:
             }
 
         return WalletWinStats(
-            analyzed_closed_positions=total,
+            analyzed_positions=total,
+            analyzed_closed_positions=total - analyzed_open_loss_positions,
+            analyzed_open_loss_positions=analyzed_open_loss_positions,
             wins=wins,
             losses=losses,
             win_rate=(wins / total) if total else 0.0,
@@ -275,7 +333,9 @@ class WeatherWalletScanner:
             source=candidate.source,
             source_category=candidate.source_category,
             win_stats=WalletWinStats(
+                analyzed_positions=0,
                 analyzed_closed_positions=0,
+                analyzed_open_loss_positions=0,
                 wins=0,
                 losses=0,
                 win_rate=0.0,
@@ -311,7 +371,7 @@ class WeatherWalletScanner:
         username = candidate.username
         if not username:
             username = next((str(row.get('name') or row.get('pseudonym') or '').strip() for row in trade_rows if (row.get('name') or row.get('pseudonym'))), None) or None
-        win_stats = self.calculate_win_stats(candidate, rows=closed_positions)
+        win_stats = self.calculate_win_stats(candidate, rows=closed_positions, open_rows=open_positions)
 
         qualified = True
         reasons: list[str] = []

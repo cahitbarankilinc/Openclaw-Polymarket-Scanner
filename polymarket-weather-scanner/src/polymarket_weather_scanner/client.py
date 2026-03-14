@@ -81,5 +81,17 @@ class PolymarketClient:
             params['eventId'] = event_id
         return self.data_get('/trades', **params)
 
-    def positions(self, user: str, limit: int = 500, offset: int = 0) -> list[dict[str, Any]]:
-        return self.data_get('/positions', user=user, limit=limit, offset=offset)
+    def positions(
+        self,
+        user: str,
+        limit: int = 500,
+        offset: int = 0,
+        sort_by: str | None = None,
+        sort_direction: str | None = None,
+    ) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {'user': user, 'limit': limit, 'offset': offset}
+        if sort_by:
+            params['sortBy'] = sort_by
+        if sort_direction:
+            params['sortDirection'] = sort_direction
+        return self.data_get('/positions', **params)

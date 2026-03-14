@@ -16,6 +16,20 @@ This project is built for continuous discovery of Polymarket wallets without dep
 - Data API: leaderboard, activity, traded market count, closed positions, positions, trades
 - Optional browser/manual verification later
 
+## Open position handling
+
+Win-rate and bucket analytics now combine:
+
+- **Closed positions** as before
+- **Open positions** only when `percentPnl` is between `-101` and `-95` (inclusive)
+
+Those qualifying open positions are treated as synthetic **losses**:
+
+- non-matching open positions are ignored completely
+- matching rows increase the wallet's activity/sample counts
+- bucket placement uses **`avgPrice`**
+- grouped bucket totals and loss counts include them as if they were closed positions
+
 ## Default logic
 
 A wallet qualifies when all of these are true:

@@ -282,7 +282,9 @@ function currentOutcomeFilter() {
 
 function emptyWinStats() {
   return {
+    analyzed_positions: 0,
     analyzed_closed_positions: 0,
+    analyzed_open_loss_positions: 0,
     wins: 0,
     losses: 0,
     win_rate: 0,
@@ -315,7 +317,7 @@ function filteredItems() {
       .filter(Boolean).some((value) => String(value).toLowerCase().includes(query)));
   }
   if (outcome) {
-    items = items.filter((item) => (displayWinStats(item).analyzed_closed_positions || 0) > 0);
+    items = items.filter((item) => (displayWinStats(item).analyzed_positions || 0) > 0);
   }
   if (mode === 'qualified') items = items.filter((item) => item.qualified);
   if (mode === 'rejected') items = items.filter((item) => !item.qualified);
@@ -422,7 +424,9 @@ function renderWalletCard(item) {
             <span>Genel win rate: <strong>${formatPercent(win.win_rate)}</strong></span>
             <span>Won: ${formatInt(win.wins)}</span>
             <span>Lost: ${formatInt(win.losses)}</span>
-            <span>Sample: ${formatInt(win.analyzed_closed_positions)}</span>
+            <span>Sample: ${formatInt(win.analyzed_positions)}</span>
+            <span>Closed: ${formatInt(win.analyzed_closed_positions)}</span>
+            <span>Open loss: ${formatInt(win.analyzed_open_loss_positions)}</span>
             <span>PnL: ${formatMoney(item.pnl)}</span>
             <span>Trades: ${formatInt(item.last_trade_count)}</span>
             <span>Source: ${escapeHtml(item.source || '—')}</span>

@@ -53,8 +53,11 @@ class ScannerTests(unittest.TestCase):
                 {'avgPrice': 0.66, 'realizedPnl': 1},
                 {'avgPrice': 0.92, 'realizedPnl': 0},
             ]
+            scanner.client.positions = lambda user, limit=500, offset=0, sort_by=None, sort_direction=None: []
             stats = scanner.calculate_win_stats(CandidateWallet(address='0xabc'))
+            self.assertEqual(stats.analyzed_positions, 5)
             self.assertEqual(stats.analyzed_closed_positions, 5)
+            self.assertEqual(stats.analyzed_open_loss_positions, 0)
             self.assertEqual(stats.wins, 3)
             self.assertEqual(stats.losses, 2)
             self.assertAlmostEqual(stats.win_rate, 0.6)
@@ -74,17 +77,70 @@ class ScannerTests(unittest.TestCase):
                 {'avgPrice': 0.40, 'realizedPnl': 4, 'outcome': 'Yes '},
                 {'avgPrice': 0.50, 'realizedPnl': 7, 'outcome': 'Yes sir'},
             ]
+            scanner.client.positions = lambda user, limit=500, offset=0, sort_by=None, sort_direction=None: []
             stats = scanner.calculate_win_stats(CandidateWallet(address='0xabc'))
             yes_stats = stats.outcome_stats['yes']
             no_stats = stats.outcome_stats['no']
 
+            self.assertEqual(yes_stats['analyzed_positions'], 3)
             self.assertEqual(yes_stats['analyzed_closed_positions'], 3)
+            self.assertEqual(yes_stats['analyzed_open_loss_positions'], 0)
             self.assertEqual(yes_stats['wins'], 2)
             self.assertEqual(yes_stats['losses'], 1)
             self.assertAlmostEqual(yes_stats['win_rate'], 2 / 3)
+            self.assertEqual(no_stats['analyzed_positions'], 1)
             self.assertEqual(no_stats['analyzed_closed_positions'], 1)
             self.assertIn('yes sir', stats.outcome_stats)
             self.assertEqual(stats.outcome_stats['yes sir']['analyzed_closed_positions'], 1)
+
+
+    def test_calculate_win_stats_includes_only_target_open_position_losses(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            scanner = StubScanner(Path(tmp))
+            closed_rows = [
+                {'avgPrice': 0.10, 'realizedPnl': 3, 'outcome': 'Yes'},
+                {'avgPrice': 0.72, 'realizedPnl': -1, 'outcome': 'No'},
+            ]
+            open_rows = [
+                {'avgPrice': 0.12, 'percentPnl': -95, 'outcome': 'Yes'},
+                {'avgPrice': 0.18, 'percentPnl': -99.5, 'outcome': 'Yes'},
+                {'avgPrice': 0.88, 'percentPnl': -101, 'outcome': 'No'},
+                {'avgPrice': 0.52, 'percentPnl': -94.99, 'outcome': 'No'},
+                {'avgPrice': 0.43, 'percentPnl': -101.01, 'outcome': 'Maybe'},
+            ]
+            stats = scanner.calculate_win_stats(CandidateWallet(address='0xabc'), rows=closed_rows, open_rows=open_rows)
+
+            self.assertEqual(stats.analyzed_positions, 5)
+            self.assertEqual(stats.analyzed_closed_positions, 2)
+            self.assertEqual(stats.analyzed_open_loss_positions, 3)
+            self.assertEqual(stats.wins, 1)
+            self.assertEqual(stats.losses, 4)
+            self.assertAlmostEqual(stats.win_rate, 0.2)
+
+            grouped = {bucket['label']: bucket for bucket in stats.grouped_buckets}
+            self.assertEqual(grouped['0-15¢']['total'], 2)
+            self.assertEqual(grouped['0-15¢']['wins'], 1)
+            self.assertEqual(grouped['0-15¢']['losses'], 1)
+            self.assertEqual(grouped['15-35¢']['total'], 1)
+            self.assertEqual(grouped['15-35¢']['losses'], 1)
+            self.assertEqual(grouped['65-85¢']['total'], 1)
+            self.assertEqual(grouped['65-85¢']['losses'], 1)
+            self.assertEqual(grouped['85-100¢']['total'], 1)
+            self.assertEqual(grouped['85-100¢']['losses'], 1)
+
+            yes_stats = stats.outcome_stats['yes']
+            self.assertEqual(yes_stats['analyzed_positions'], 3)
+            self.assertEqual(yes_stats['analyzed_closed_positions'], 1)
+            self.assertEqual(yes_stats['analyzed_open_loss_positions'], 2)
+            self.assertEqual(yes_stats['wins'], 1)
+            self.assertEqual(yes_stats['losses'], 2)
+
+            no_stats = stats.outcome_stats['no']
+            self.assertEqual(no_stats['analyzed_positions'], 2)
+            self.assertEqual(no_stats['analyzed_closed_positions'], 1)
+            self.assertEqual(no_stats['analyzed_open_loss_positions'], 1)
+            self.assertEqual(no_stats['wins'], 0)
+            self.assertEqual(no_stats['losses'], 2)
 
 
 if __name__ == '__main__':
