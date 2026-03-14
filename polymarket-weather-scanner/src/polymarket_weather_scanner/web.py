@@ -8,7 +8,7 @@ import contextlib
 
 from .config import APP_DIR
 from .database import ScannerDatabase
-from .scanner import WeatherWalletScanner
+from .scanner import WeatherWalletScanner, normalize_win_stats_payload
 
 
 WEB_DIR = Path(__file__).with_name('web')
@@ -51,6 +51,8 @@ class ScannerWebHandler(SimpleHTTPRequestHandler):
         rows = self.db.latest_results(qualified_only=qualified_only, limit=limit)
         items = [dict(row) for row in rows]
         payload = [json.loads(item['payload_json']) for item in items]
+        for row in payload:
+            row['win_stats'] = normalize_win_stats_payload(row.get('win_stats'))
         self.write_json(payload)
 
     def handle_summary(self) -> None:

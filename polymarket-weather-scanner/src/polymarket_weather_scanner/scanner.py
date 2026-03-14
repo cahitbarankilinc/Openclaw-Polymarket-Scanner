@@ -13,6 +13,35 @@ from .database import ScannerDatabase
 from .models import BucketStat, CandidateWallet, WalletScanResult, WalletWinStats
 
 
+def normalize_win_stats_payload(win_stats: dict | None) -> dict:
+    payload = dict(win_stats or {})
+    payload.setdefault('wins', 0)
+    payload.setdefault('losses', 0)
+    payload.setdefault('win_rate', 0.0)
+    payload.setdefault('grouped_buckets', [BucketStat(label=label, start_cents=start, end_cents=end).to_dict() for (label, start, end) in GROUPED_BUCKETS])
+    analyzed_closed_positions = int(payload.get('analyzed_closed_positions') or 0)
+    analyzed_open_loss_positions = int(payload.get('analyzed_open_loss_positions') or 0)
+    payload['analyzed_closed_positions'] = analyzed_closed_positions
+    payload['analyzed_open_loss_positions'] = analyzed_open_loss_positions
+    payload['analyzed_positions'] = int(payload.get('analyzed_positions') or (analyzed_closed_positions + analyzed_open_loss_positions))
+
+    normalized_outcome_stats: dict[str, dict] = {}
+    for key, value in (payload.get('outcome_stats') or {}).items():
+        item = dict(value or {})
+        item.setdefault('wins', 0)
+        item.setdefault('losses', 0)
+        item.setdefault('win_rate', 0.0)
+        item.setdefault('grouped_buckets', [BucketStat(label=label, start_cents=start, end_cents=end).to_dict() for (label, start, end) in GROUPED_BUCKETS])
+        item_closed = int(item.get('analyzed_closed_positions') or 0)
+        item_open = int(item.get('analyzed_open_loss_positions') or 0)
+        item['analyzed_closed_positions'] = item_closed
+        item['analyzed_open_loss_positions'] = item_open
+        item['analyzed_positions'] = int(item.get('analyzed_positions') or (item_closed + item_open))
+        normalized_outcome_stats[key] = item
+    payload['outcome_stats'] = normalized_outcome_stats
+    return payload
+
+
 GROUPED_BUCKETS = [
     ('0-15¢', 0, 15),
     ('15-35¢', 15, 35),
@@ -572,12 +601,16 @@ class WeatherWalletScanner:
         candidate = CandidateWallet(address=address.lower(), username=None, pnl=None, volume=None, source=source, source_category='custom', verified_badge=None)
         result = self.evaluate_candidate(candidate, weather_terms)
         payload = result.to_dict()
+        payload['win_stats'] = normalize_win_stats_payload(payload.get('win_stats'))
         self.db.add_custom_wallet(address.lower())
         self.db.save_custom_wallet_result(payload)
         return payload
 
     def latest_results(self, qualified_only: bool = False, limit: int = 100) -> list[dict]:
-        return [json.loads(row['payload_json']) for row in self.db.latest_results(qualified_only=qualified_only, limit=limit)]
+        rows = [json.loads(row['payload_json']) for row in self.db.latest_results(qualified_only=qualified_only, limit=limit)]
+        for row in rows:
+            row['win_stats'] = normalize_win_stats_payload(row.get('win_stats'))
+        return rows
 
     def export(self, out_path: Path, fmt: str = 'json', qualified_only: bool = True, limit: int = 100) -> Path:
         rows = self.latest_results(qualified_only=qualified_only, limit=limit)
