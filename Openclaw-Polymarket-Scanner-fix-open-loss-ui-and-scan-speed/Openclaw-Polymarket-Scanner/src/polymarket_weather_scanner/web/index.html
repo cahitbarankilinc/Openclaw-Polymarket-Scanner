@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Polymarket Weather Scanner</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <div>
+          <h1>Polymarket Weather Scanner</h1>
+        </div>
+        <div class="refresh-area">
+          <button id="refreshButton">Yenile</button>
+          <span id="refreshProgress" class="muted refresh-progress"></span>
+        </div>
+      </header>
+
+      <section class="cards" id="summaryCards"></section>
+
+      <div class="main-layout">
+        <aside class="panel category-sidebar">
+          <div class="category-sidebar-header">
+            <h2>Kategoriler</h2>
+          </div>
+          <div class="add-wallet-box">
+            <label for="walletAddressInput">Wallet ekle</label>
+            <input id="walletAddressInput" type="text" placeholder="0x..." autocomplete="off" />
+            <button id="addWalletButton" type="button">Analyze et</button>
+            <div id="addWalletStatus" class="muted add-wallet-status"></div>
+          </div>
+          <nav id="categoryList" class="category-list"></nav>
+        </aside>
+
+        <main class="content-area">
+          <section class="panel filters">
+            <div class="field">
+              <label for="searchInput">Ara</label>
+              <input id="searchInput" type="search" placeholder="username / address / source" />
+            </div>
+            <div class="field small">
+              <label for="outcomeInput">Outcome</label>
+              <input id="outcomeInput" type="text" placeholder="Yes / No / ..." autocomplete="off" />
+            </div>
+            <div class="field small">
+              <label for="qualifiedOnly">Durum</label>
+              <select id="qualifiedOnly">
+                <option value="all">Hepsi</option>
+                <option value="qualified">Sadece qualified</option>
+                <option value="rejected">Sadece rejected</option>
+              </select>
+            </div>
+            <div class="field small">
+              <label for="sortSelect">Sırala</label>
+              <select id="sortSelect">
+                <option value="win_rate">Genel win rate</option>
+                <option value="pnl">PnL</option>
+                <option value="last_trade_count">Trade count</option>
+              </select>
+            </div>
+            <div class="filters-actions">
+              <button id="resetBucketFilters" type="button" class="secondary-button">Bucket filtrelerini temizle</button>
+            </div>
+          </section>
+
+          <section class="panel bucket-filters">
+            <div id="bucketFiltersGrid" class="bucket-filters-grid"></div>
+          </section>
+
+          <section class="wallet-list" id="walletList"></section>
+        </main>
+      </div>
+    </div>
+
+    <template id="summaryCardTemplate">
+      <article class="panel stat-card">
+        <span class="muted stat-label"></span>
+        <strong class="stat-value"></strong>
+      </article>
+    </template>
+
+    <script src="/app.js?v=20260314b" defer></script>
+  </body>
+</html>
