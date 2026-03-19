@@ -507,7 +507,7 @@ def slugify(value: str) -> str:
 
 
 def utc_now_iso() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
 
 
 def normalize_url(value: str | None) -> str:
@@ -529,7 +529,7 @@ def local_now_from_offset(offset: str | None) -> str | None:
     minutes = int(offset[3:5])
     delta = timedelta(hours=hours, minutes=minutes) * sign
     tz = timezone(delta)
-    return datetime.now(UTC).astimezone(tz).replace(microsecond=0).isoformat()
+    return datetime.now(timezone.utc).astimezone(tz).replace(microsecond=0).isoformat()
 
 
 def first_market_offset(markets: list[dict[str, Any]]) -> str | None:

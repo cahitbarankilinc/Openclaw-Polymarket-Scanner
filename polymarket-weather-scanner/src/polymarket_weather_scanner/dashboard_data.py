@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -158,7 +158,7 @@ def parse_utc(value: str | None) -> datetime | None:
 
 
 def iso_utc_from_ts(ts: int) -> str:
-    return datetime.fromtimestamp(ts, UTC).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+    return datetime.fromtimestamp(ts, timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
 
 
 def to_float(value: Any) -> float | None:
