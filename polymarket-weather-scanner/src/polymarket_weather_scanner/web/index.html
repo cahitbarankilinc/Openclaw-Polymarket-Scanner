@@ -52,7 +52,13 @@
             <h2 id="chartTitle">Event grafiği</h2>
             <div id="chartSubtitle" class="muted"></div>
           </div>
-          <div id="legend" class="legend"></div>
+          <div class="chart-header-right">
+            <div class="side-toggle" id="sideToggle" role="tablist" aria-label="YES / NO seçim">
+              <button id="yesModeButton" type="button" class="side-toggle-button active" data-side="yes">YES</button>
+              <button id="noModeButton" type="button" class="side-toggle-button" data-side="no">NO</button>
+            </div>
+            <div id="legend" class="legend"></div>
+          </div>
         </div>
         <div class="chart-wrap">
           <svg id="chartSvg" viewBox="0 0 1200 520" preserveAspectRatio="none"></svg>

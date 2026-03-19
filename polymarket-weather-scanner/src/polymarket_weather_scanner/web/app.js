@@ -2,6 +2,7 @@ const state = {
   cities: [],
   events: [],
   series: null,
+  selectedSide: 'yes',
 };
 
 const citySelect = document.getElementById('citySelect');
@@ -16,6 +17,8 @@ const chartTooltip = document.getElementById('chartTooltip');
 const legend = document.getElementById('legend');
 const marketTableBody = document.getElementById('marketTableBody');
 const tableHint = document.getElementById('tableHint');
+const yesModeButton = document.getElementById('yesModeButton');
+const noModeButton = document.getElementById('noModeButton');
 
 const palette = ['#66d9ef', '#ffd166', '#ef476f', '#06d6a0', '#a78bfa', '#f97316', '#22c55e', '#f43f5e', '#38bdf8', '#eab308', '#fb7185'];
 
@@ -50,8 +53,16 @@ async function loadSeries() {
 
 function render() {
   renderStats();
+  renderSideToggle();
   renderChart();
   renderTable();
+}
+
+function renderSideToggle() {
+  const isYes = state.selectedSide === 'yes';
+  yesModeButton.classList.toggle('active', isYes);
+  noModeButton.classList.toggle('active', !isYes);
+  document.body.classList.toggle('mode-no', !isYes);
 }
 
 function renderStats() {
@@ -65,7 +76,8 @@ function renderStats() {
     ['Kırmızı çizgi', markers.length],
   ];
   statsGrid.innerHTML = cards.map(([label, value]) => `<article class="panel stat-card"><span class="muted">${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong></article>`).join('');
-  chartTitle.textContent = series.event_title || 'Event grafiği';
+  const sideLabel = state.selectedSide === 'yes' ? 'YES' : 'NO';
+  chartTitle.textContent = `${series.event_title || 'Event grafiği'} · ${sideLabel}`;
   chartSubtitle.textContent = `${series.target_date} · interval ${series.interval} · source ${series.source_url_actual || series.source_url_expected || '—'}`;
 }
 
@@ -103,12 +115,13 @@ function renderChart() {
       <text x="${x}" y="${height - 14}" text-anchor="middle" class="axis-label">${formatTime(ts)}</text>`;
   }).join('');
 
+  const sideKey = state.selectedSide === 'yes' ? 'yes_probability_cents' : 'no_probability_cents';
   const lines = marketSeries.map((line, index) => {
     const color = palette[index % palette.length];
-    const d = (line.points || []).map((point, pointIndex) => `${pointIndex === 0 ? 'M' : 'L'} ${xFor(point.ts)} ${yFor(point.yes_probability_cents)}`).join(' ');
+    const d = (line.points || []).map((point, pointIndex) => `${pointIndex === 0 ? 'M' : 'L'} ${xFor(point.ts)} ${yFor(point[sideKey])}`).join(' ');
     const circles = (line.points || []).map((point) => {
       const payload = encodeURIComponent(JSON.stringify({ type: 'market', label: line.label, point }));
-      return `<circle class="point-dot" cx="${xFor(point.ts)}" cy="${yFor(point.yes_probability_cents)}" r="4" fill="${color}" data-payload="${payload}"></circle>`;
+      return `<circle class="point-dot" cx="${xFor(point.ts)}" cy="${yFor(point[sideKey])}" r="4" fill="${color}" data-payload="${payload}"></circle>`;
     }).join('');
     return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2.4"></path>${circles}`;
   }).join('');
@@ -185,11 +198,14 @@ function showTooltip(event) {
     return;
   }
   const point = payload.point || {};
+  const focusLabel = state.selectedSide === 'yes' ? 'YES' : 'NO';
+  const focusValue = state.selectedSide === 'yes' ? point.yes_probability_cents : point.no_probability_cents;
   chartTooltip.innerHTML = `
     <div class="tooltip-title">${escapeHtml(payload.label || '')}</div>
     <div>${escapeHtml(point.actual_ts || point.ts || '')}</div>
-    <div>YES: <strong>${formatCents(point.yes_probability_cents)}</strong></div>
-    <div>NO: <strong>${formatCents(point.no_probability_cents)}</strong></div>
+    <div>${focusLabel}: <strong>${formatCents(focusValue)}</strong></div>
+    <div>YES: ${formatCents(point.yes_probability_cents)}</div>
+    <div>NO: ${formatCents(point.no_probability_cents)}</div>
     <div>YES bid/ask: ${formatCents(point.yes_best_bid_sell_cents)} / ${formatCents(point.yes_best_ask_buy_cents)}</div>
     <div>NO bid/ask: ${formatCents(point.no_best_bid_sell_cents)} / ${formatCents(point.no_best_ask_buy_cents)}</div>
   `;
@@ -197,6 +213,8 @@ function showTooltip(event) {
 
 chartSvg.addEventListener('mousemove', showTooltip);
 chartSvg.addEventListener('mouseleave', () => chartTooltip.classList.add('hidden'));
+yesModeButton.addEventListener('click', () => { state.selectedSide = 'yes'; render(); });
+noModeButton.addEventListener('click', () => { state.selectedSide = 'no'; render(); });
 reloadButton.addEventListener('click', loadSeries);
 citySelect.addEventListener('change', async () => { await loadEvents(); await loadSeries(); });
 dateSelect.addEventListener('change', loadSeries);
