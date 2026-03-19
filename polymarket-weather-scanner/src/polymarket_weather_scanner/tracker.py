@@ -6,7 +6,7 @@ import time
 import urllib.parse
 import urllib.request
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
