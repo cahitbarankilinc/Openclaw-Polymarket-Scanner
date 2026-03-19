@@ -3,6 +3,7 @@ const state = {
   events: [],
   series: null,
   selectedSide: 'yes',
+  hiddenMarkets: new Set(),
 };
 
 const citySelect = document.getElementById('citySelect');
@@ -48,12 +49,14 @@ async function loadSeries() {
   const interval = intervalSelect.value;
   if (!city || !date) return;
   state.series = await fetchJson(`/api/tracker/series?city=${encodeURIComponent(city)}&date=${encodeURIComponent(date)}&interval=${encodeURIComponent(interval)}`);
+  state.hiddenMarkets = new Set();
   render();
 }
 
 function render() {
   renderStats();
   renderSideToggle();
+  renderLegend();
   renderChart();
   renderTable();
 }
@@ -63,6 +66,28 @@ function renderSideToggle() {
   yesModeButton.classList.toggle('active', isYes);
   noModeButton.classList.toggle('active', !isYes);
   document.body.classList.toggle('mode-no', !isYes);
+}
+
+function isMarketVisible(line) {
+  return !state.hiddenMarkets.has(line.market_id || line.label);
+}
+
+function toggleMarketVisibility(key) {
+  if (state.hiddenMarkets.has(key)) state.hiddenMarkets.delete(key);
+  else state.hiddenMarkets.add(key);
+  render();
+}
+
+function renderLegend() {
+  const marketSeries = state.series?.market_series || [];
+  legend.innerHTML = marketSeries.map((line, index) => {
+    const key = line.market_id || line.label;
+    const active = isMarketVisible(line);
+    return `<button type="button" class="legend-toggle${active ? ' active' : ''}" data-market-key="${escapeHtml(key)}">
+      <span class="legend-color" style="background:${palette[index % palette.length]}"></span>
+      <span>${escapeHtml(line.label)}</span>
+    </button>`;
+  }).join('');
 }
 
 function renderStats() {
@@ -84,11 +109,10 @@ function renderStats() {
 function renderChart() {
   const series = state.series;
   if (!series) return;
-  const marketSeries = series.market_series || [];
+  const marketSeries = (series.market_series || []).filter(isMarketVisible);
   const allPoints = marketSeries.flatMap((line) => line.points || []);
   if (!allPoints.length) {
-    chartSvg.innerHTML = '';
-    legend.innerHTML = '';
+    chartSvg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" class="axis-label">Görünür outcome kalmadı</text>';
     return;
   }
 
@@ -142,13 +166,12 @@ function renderChart() {
     ${lines}
   `;
 
-  legend.innerHTML = marketSeries.map((line, index) => `<div class="legend-item"><span class="legend-color" style="background:${palette[index % palette.length]}"></span>${escapeHtml(line.label)}</div>`).join('');
 }
 
 function renderTable() {
   const series = state.series;
   if (!series) return;
-  const rows = (series.market_series || []).map((line) => ({ label: line.label, point: (line.points || []).at(-1) })).filter((row) => row.point);
+  const rows = (series.market_series || []).filter(isMarketVisible).map((line) => ({ label: line.label, point: (line.points || []).at(-1) })).filter((row) => row.point);
   tableHint.textContent = rows.length ? `Son aggregated nokta gösteriliyor (${series.interval})` : '';
   marketTableBody.innerHTML = rows.map(({ label, point }) => `
     <tr>
@@ -215,6 +238,16 @@ chartSvg.addEventListener('mousemove', showTooltip);
 chartSvg.addEventListener('mouseleave', () => chartTooltip.classList.add('hidden'));
 yesModeButton.addEventListener('click', () => { state.selectedSide = 'yes'; render(); });
 noModeButton.addEventListener('click', () => { state.selectedSide = 'no'; render(); });
+showAllBucketsButton.addEventListener('click', () => { state.hiddenMarkets = new Set(); render(); });
+hideAllBucketsButton.addEventListener('click', () => {
+  state.hiddenMarkets = new Set((state.series?.market_series || []).map((line) => line.market_id || line.label));
+  render();
+});
+legend.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-market-key]');
+  if (!button) return;
+  toggleMarketVisibility(button.dataset.marketKey);
+});
 reloadButton.addEventListener('click', loadSeries);
 citySelect.addEventListener('change', async () => { await loadEvents(); await loadSeries(); });
 dateSelect.addEventListener('change', loadSeries);
@@ -224,6 +257,11 @@ intervalSelect.addEventListener('change', loadSeries);
   await loadCities();
   await loadEvents();
   await loadSeries();
+})().catch((error) => {
+  console.error(error);
+  chartSubtitle.textContent = 'Dashboard yüklenemedi';
+});
+oadSeries();
 })().catch((error) => {
   console.error(error);
   chartSubtitle.textContent = 'Dashboard yüklenemedi';
