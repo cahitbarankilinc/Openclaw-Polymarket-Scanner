@@ -1,604 +1,211 @@
-const GROUPED_BUCKET_LABELS = ['0-15¢', '15-35¢', '35-65¢', '65-85¢', '85-100¢'];
-const FAVORITES_STORAGE_KEY = 'polymarket-weather-scanner:favs';
-const CATEGORY_ALIASES = {
-  business: 'finance',
-  pop_culture: 'culture',
-};
-const STATIC_CATEGORY_ORDER = ['favs', 'all', 'politics', 'sports', 'crypto', 'finance', 'culture', 'mentions', 'weather', 'economics', 'tech', 'custom'];
-
 const state = {
-  items: [],
-  summary: null,
-  scanState: null,
-  bucketSort: null,
-  activeCategory: 'all',
-  favorites: new Set(loadFavorites()),
-  loading: false,
-  lastFullLoadAt: 0,
+  cities: [],
+  events: [],
+  series: null,
 };
-const summaryCards = document.getElementById('summaryCards');
-const summaryCardTemplate = document.getElementById('summaryCardTemplate');
-const walletList = document.getElementById('walletList');
-const searchInput = document.getElementById('searchInput');
-const outcomeInput = document.getElementById('outcomeInput');
-const qualifiedOnly = document.getElementById('qualifiedOnly');
-const sortSelect = document.getElementById('sortSelect');
-const refreshButton = document.getElementById('refreshButton');
-const refreshProgress = document.getElementById('refreshProgress');
-const bucketFiltersGrid = document.getElementById('bucketFiltersGrid');
-const resetBucketFiltersButton = document.getElementById('resetBucketFilters');
-const categoryList = document.getElementById('categoryList');
-const walletAddressInput = document.getElementById('walletAddressInput');
-const addWalletButton = document.getElementById('addWalletButton');
-const addWalletStatus = document.getElementById('addWalletStatus');
 
-initBucketFilters();
-renderCategories();
+const citySelect = document.getElementById('citySelect');
+const dateSelect = document.getElementById('dateSelect');
+const intervalSelect = document.getElementById('intervalSelect');
+const reloadButton = document.getElementById('reloadButton');
+const statsGrid = document.getElementById('statsGrid');
+const chartTitle = document.getElementById('chartTitle');
+const chartSubtitle = document.getElementById('chartSubtitle');
+const chartSvg = document.getElementById('chartSvg');
+const chartTooltip = document.getElementById('chartTooltip');
+const legend = document.getElementById('legend');
+const marketTableBody = document.getElementById('marketTableBody');
+const tableHint = document.getElementById('tableHint');
 
-function setRefreshProgress(value, text = '') {
-  refreshProgress.textContent = text || (value > 0 && value < 100 ? `%${value}` : '');
+const palette = ['#66d9ef', '#ffd166', '#ef476f', '#06d6a0', '#a78bfa', '#f97316', '#22c55e', '#f43f5e', '#38bdf8', '#eab308', '#fb7185'];
+
+async function fetchJson(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await res.json();
 }
 
-function renderScanProgress() {
-  const scan = state.scanState;
-  if (!scan) {
-    setRefreshProgress(0, '');
+async function loadCities() {
+  const data = await fetchJson('/api/tracker/cities');
+  state.cities = data.cities || [];
+  citySelect.innerHTML = state.cities.map((city) => `<option value="${escapeHtml(city.city_slug)}">${escapeHtml(city.city)}</option>`).join('');
+}
+
+async function loadEvents() {
+  const city = citySelect.value;
+  if (!city) return;
+  const data = await fetchJson(`/api/tracker/events?city=${encodeURIComponent(city)}`);
+  state.events = data.events || [];
+  dateSelect.innerHTML = state.events.map((event) => `<option value="${escapeHtml(event.target_date)}">${escapeHtml(event.target_date)}</option>`).join('');
+}
+
+async function loadSeries() {
+  const city = citySelect.value;
+  const date = dateSelect.value;
+  const interval = intervalSelect.value;
+  if (!city || !date) return;
+  state.series = await fetchJson(`/api/tracker/series?city=${encodeURIComponent(city)}&date=${encodeURIComponent(date)}&interval=${encodeURIComponent(interval)}`);
+  render();
+}
+
+function render() {
+  renderStats();
+  renderChart();
+  renderTable();
+}
+
+function renderStats() {
+  const series = state.series;
+  if (!series) return;
+  const markers = series.forecast_markers || [];
+  const cards = [
+    ['Snapshot', series.snapshot_count || 0],
+    ['Forecast snapshot', series.forecast_snapshot_count || 0],
+    ['Market line', (series.market_series || []).length],
+    ['Kırmızı çizgi', markers.length],
+  ];
+  statsGrid.innerHTML = cards.map(([label, value]) => `<article class="panel stat-card"><span class="muted">${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong></article>`).join('');
+  chartTitle.textContent = series.event_title || 'Event grafiği';
+  chartSubtitle.textContent = `${series.target_date} · interval ${series.interval} · source ${series.source_url_actual || series.source_url_expected || '—'}`;
+}
+
+function renderChart() {
+  const series = state.series;
+  if (!series) return;
+  const marketSeries = series.market_series || [];
+  const allPoints = marketSeries.flatMap((line) => line.points || []);
+  if (!allPoints.length) {
+    chartSvg.innerHTML = '';
+    legend.innerHTML = '';
     return;
   }
-  if (scan.running) {
-    const percent = Number(scan.percent || 0);
-    const activeCategory = categoryLabel(normalizeCategory(scan.active_category || ''));
-    const completed = Number(scan.completed_candidates || 0);
-    const total = Number(scan.total_candidates || 0);
-    const detail = activeCategory && activeCategory !== 'Unknown'
-      ? ` · ${activeCategory} ${completed}/${total}`
-      : ` · ${completed}/${total}`;
-    setRefreshProgress(percent, `%${percent}${detail}`);
-    return;
-  }
-  if (Number(scan.percent || 0) >= 100 && Number(scan.total_candidates || 0) > 0) {
-    setRefreshProgress(100, '%100');
-    setTimeout(() => {
-      if (!state.scanState?.running) setRefreshProgress(0, '');
-    }, 1200);
-    return;
-  }
-  setRefreshProgress(0, '');
+
+  const width = 1200;
+  const height = 520;
+  const margin = { top: 20, right: 24, bottom: 42, left: 52 };
+  const innerWidth = width - margin.left - margin.right;
+  const innerHeight = height - margin.top - margin.bottom;
+  const timestamps = [...new Set(allPoints.map((point) => point.ts))].sort();
+  const minTs = Date.parse(timestamps[0]);
+  const maxTs = Date.parse(timestamps[timestamps.length - 1]);
+  const xFor = (ts) => margin.left + ((Date.parse(ts) - minTs) / Math.max(1, maxTs - minTs)) * innerWidth;
+  const yFor = (value) => margin.top + innerHeight - (Number(value || 0) / 100) * innerHeight;
+
+  const horizontalGrid = [0, 20, 40, 60, 80, 100].map((value) => {
+    const y = yFor(value);
+    return `<line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" class="grid-line" />
+      <text x="${margin.left - 10}" y="${y + 4}" class="axis-label axis-left">${value}</text>`;
+  }).join('');
+
+  const verticalTicks = timestamps.filter((_, index) => index % Math.max(1, Math.floor(timestamps.length / 6)) === 0 || index === timestamps.length - 1).map((ts) => {
+    const x = xFor(ts);
+    return `<line x1="${x}" y1="${margin.top}" x2="${x}" y2="${height - margin.bottom}" class="grid-line vertical" />
+      <text x="${x}" y="${height - 14}" text-anchor="middle" class="axis-label">${formatTime(ts)}</text>`;
+  }).join('');
+
+  const lines = marketSeries.map((line, index) => {
+    const color = palette[index % palette.length];
+    const d = (line.points || []).map((point, pointIndex) => `${pointIndex === 0 ? 'M' : 'L'} ${xFor(point.ts)} ${yFor(point.yes_probability_cents)}`).join(' ');
+    const circles = (line.points || []).map((point) => {
+      const payload = encodeURIComponent(JSON.stringify({ type: 'market', label: line.label, point }));
+      return `<circle class="point-dot" cx="${xFor(point.ts)}" cy="${yFor(point.yes_probability_cents)}" r="4" fill="${color}" data-payload="${payload}"></circle>`;
+    }).join('');
+    return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2.4"></path>${circles}`;
+  }).join('');
+
+  const markers = (series.forecast_markers || []).map((marker) => {
+    const x = xFor(marker.ts);
+    const payload = encodeURIComponent(JSON.stringify({ type: 'marker', marker }));
+    return `<line x1="${x}" y1="${margin.top}" x2="${x}" y2="${height - margin.bottom}" class="forecast-marker" data-payload="${payload}"></line>`;
+  }).join('');
+
+  chartSvg.innerHTML = `
+    <rect x="0" y="0" width="${width}" height="${height}" fill="transparent"></rect>
+    ${horizontalGrid}
+    ${verticalTicks}
+    <line x1="${margin.left}" y1="${height - margin.bottom}" x2="${width - margin.right}" y2="${height - margin.bottom}" class="axis-line"></line>
+    <line x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${height - margin.bottom}" class="axis-line"></line>
+    ${markers}
+    ${lines}
+  `;
+
+  legend.innerHTML = marketSeries.map((line, index) => `<div class="legend-item"><span class="legend-color" style="background:${palette[index % palette.length]}"></span>${escapeHtml(line.label)}</div>`).join('');
 }
 
-async function load(force = false) {
-  if (state.loading) return;
-  state.loading = true;
-  refreshButton.disabled = true;
-  try {
-    setRefreshProgress(10);
-    const summaryRes = await fetch('/api/summary');
-    setRefreshProgress(35);
-    const resultsRes = await fetch('/api/results?limit=5000');
-    setRefreshProgress(60);
-    const scanStateRes = await fetch('/api/scan-state');
-    setRefreshProgress(80);
-    state.summary = await summaryRes.json();
-    state.items = await resultsRes.json();
-    state.scanState = await scanStateRes.json();
-    state.lastFullLoadAt = Date.now();
-    if (!availableCategories().includes(state.activeCategory)) state.activeCategory = 'all';
-    renderSummary();
-    renderCategories();
-    renderList();
-    renderScanProgress();
-  } finally {
-    state.loading = false;
-    refreshButton.disabled = false;
-  }
-}
-
-function loadFavorites() {
-  try {
-    const raw = localStorage.getItem(FAVORITES_STORAGE_KEY);
-    const items = raw ? JSON.parse(raw) : [];
-    return Array.isArray(items) ? items : [];
-  } catch {
-    return [];
-  }
-}
-
-function persistFavorites() {
-  localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([...state.favorites]));
-}
-
-function normalizeCategory(category) {
-  const normalized = String(category || 'unknown').toLowerCase();
-  return CATEGORY_ALIASES[normalized] || normalized;
-}
-
-function dynamicCategories() {
-  const categories = new Set((state.items || []).map((item) => normalizeCategory(item.source_category)).filter(Boolean));
-  return [...categories].filter((category) => !STATIC_CATEGORY_ORDER.includes(category)).sort();
-}
-
-function availableCategories() {
-  return [...STATIC_CATEGORY_ORDER, ...dynamicCategories()];
-}
-
-function categoryLabel(category) {
-  if (category === 'favs') return 'Favs';
-  if (category === 'all') return 'All';
-  if (category === 'custom') return 'Custom';
-  if (category === 'weather_deep') return 'Weather Deep';
-  if (category === 'custom_deep') return 'Custom Deep';
-  if (category.endsWith('_deep')) return `${categoryLabel(category.slice(0, -5))} Deep`;
-  return category.replaceAll('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function categoryCount(category) {
-  if (category === 'favs') return state.items.filter((item) => state.favorites.has(item.address.toLowerCase())).length;
-  if (category === 'all') return state.items.length;
-  return state.items.filter((item) => normalizeCategory(item.source_category) === category).length;
-}
-
-function renderCategories() {
-  categoryList.innerHTML = availableCategories().map((category) => `
-    <button
-      type="button"
-      class="category-item${state.activeCategory === category ? ' active' : ''}"
-      data-category="${category}"
-    >
-      <span>${categoryLabel(category)}</span>
-      <span class="category-count">${formatInt(categoryCount(category))}</span>
-    </button>
+function renderTable() {
+  const series = state.series;
+  if (!series) return;
+  const rows = (series.market_series || []).map((line) => ({ label: line.label, point: (line.points || []).at(-1) })).filter((row) => row.point);
+  tableHint.textContent = rows.length ? `Son aggregated nokta gösteriliyor (${series.interval})` : '';
+  marketTableBody.innerHTML = rows.map(({ label, point }) => `
+    <tr>
+      <td>${escapeHtml(label)}</td>
+      <td>${formatCents(point.yes_probability_cents)}</td>
+      <td>${formatCents(point.no_probability_cents)}</td>
+      <td>${formatCents(point.yes_best_bid_sell_cents)}</td>
+      <td>${formatCents(point.yes_best_ask_buy_cents)}</td>
+      <td>${formatCents(point.no_best_bid_sell_cents)}</td>
+      <td>${formatCents(point.no_best_ask_buy_cents)}</td>
+    </tr>
   `).join('');
 }
 
-function initBucketFilters() {
-  bucketFiltersGrid.innerHTML = `
-    <div class="bucket-filter-side">
-      <div class="bucket-filter-side-inner">
-        <div class="bucket-filter-row-labels">
-          <div class="bucket-filter-row-label">Win Rate</div>
-          <div class="bucket-filter-row-label">Activity</div>
-        </div>
-      </div>
-    </div>
-    <div class="bucket-filter-card-grid">
-      ${GROUPED_BUCKET_LABELS.map((label, index) => renderBucketFilterCard(index, label)).join('')}
-    </div>
-  `;
-}
-
-function renderBucketFilterCard(index, label) {
-  const winrateSortState = getBucketSortState(index, 'winrate');
-  const activitySortState = getBucketSortState(index, 'activity');
-  return `
-    <div class="bucket-card bucket-filter-card" aria-label="${escapeHtml(label)} filtreleri">
-      <div class="bucket-label">${escapeHtml(label)}</div>
-      <div class="bucket-filter-card-body">
-        <div class="bucket-filter-row">
-          <input
-            id="bucket-${index}-winrate-min"
-            data-bucket-index="${index}"
-            data-filter-kind="winrate-min"
-            class="bucket-mini-input"
-            type="number"
-            min="0"
-            max="100"
-            step="0.1"
-            placeholder="min"
-          />
-          <div class="bucket-max-cell">
-            <input
-              id="bucket-${index}-winrate-max"
-              data-bucket-index="${index}"
-              data-filter-kind="winrate-max"
-              class="bucket-mini-input"
-              type="number"
-              min="0"
-              max="100"
-              step="0.1"
-              placeholder="max"
-            />
-            <button
-              type="button"
-              class="bucket-sort-button${winrateSortState ? ' active' : ''}"
-              data-sort-bucket-index="${index}"
-              data-sort-metric="winrate"
-              title="Win rate sıralama"
-            >${sortButtonLabel(winrateSortState)}</button>
-          </div>
-        </div>
-        <div class="bucket-filter-row">
-          <input
-            id="bucket-${index}-activity-min"
-            data-bucket-index="${index}"
-            data-filter-kind="activity-min"
-            class="bucket-mini-input"
-            type="number"
-            min="0"
-            step="1"
-            placeholder="min"
-          />
-          <div class="bucket-max-cell">
-            <input
-              id="bucket-${index}-activity-max"
-              data-bucket-index="${index}"
-              data-filter-kind="activity-max"
-              class="bucket-mini-input"
-              type="number"
-              min="0"
-              step="1"
-              placeholder="max"
-            />
-            <button
-              type="button"
-              class="bucket-sort-button${activitySortState ? ' active' : ''}"
-              data-sort-bucket-index="${index}"
-              data-sort-metric="activity"
-              title="Activity sıralama"
-            >${sortButtonLabel(activitySortState)}</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function isDeepCategory(category) {
-  return String(category || '').endsWith('_deep') || category === 'weather_deep' || category === 'custom_deep';
-}
-
-function getAnalyzedProgress() {
-  const scan = state.scanState || {};
-  const totals = scan.category_totals || {};
-  const completed = scan.category_completed || {};
-  const entries = Object.keys(totals);
-  const total = entries.reduce((sum, key) => sum + Number(totals[key] || 0), 0);
-  const done = entries.reduce((sum, key) => sum + Math.min(Number(completed[key] || 0), Number(totals[key] || 0)), 0);
-  const percent = total ? Math.floor((done / total) * 100) : 0;
-  return { done, total, percent };
-}
-
-function getOverallScanProgress() {
-  const scan = state.scanState || {};
-  const total = Number(scan.total_candidates || 0);
-  const done = total ? Math.min(Number(scan.completed_candidates || 0), total) : 0;
-  const percent = total ? Math.floor((done / total) * 100) : Number(scan.percent || 0);
-  return { done, total, percent };
-}
-
-function formatProgress(value) {
-  if (!value || !value.total) return '0/0 (%0)';
-  return `${formatInt(value.done)}/${formatInt(value.total)} (%${value.percent})`;
-}
-
-function renderSummary() {
-  if (!state.summary) return;
-  summaryCards.innerHTML = '';
-  const analyzed = getAnalyzedProgress();
-  const overall = getOverallScanProgress();
-  const cards = [
-    ['Toplam sonuç', state.summary.total],
-    ['Qualified', state.summary.qualified],
-    ['Hesaplanan', formatProgress(analyzed)],
-    ['Genel tarama', formatProgress(overall)],
-  ];
-  for (const [label, value] of cards) {
-    const node = summaryCardTemplate.content.firstElementChild.cloneNode(true);
-    node.querySelector('.stat-label').textContent = label;
-    node.querySelector('.stat-value').textContent = value;
-    summaryCards.appendChild(node);
-  }
-}
-
-function currentOutcomeFilter() {
-  return outcomeInput ? outcomeInput.value.trim().toLowerCase() : '';
-}
-
-function emptyWinStats() {
-  return {
-    analyzed_positions: 0,
-    analyzed_closed_positions: 0,
-    analyzed_open_loss_positions: 0,
-    wins: 0,
-    losses: 0,
-    win_rate: 0,
-    grouped_buckets: GROUPED_BUCKET_LABELS.map((label) => ({ label, total: 0, wins: 0, losses: 0, win_rate: 0 })),
-  };
-}
-
-function displayWinStats(item) {
-  const outcome = currentOutcomeFilter();
-  const base = item.win_stats || emptyWinStats();
-  if (!outcome) return base;
-  return base.outcome_stats?.[outcome] || emptyWinStats();
-}
-
-function filteredItems() {
-  let items = [...state.items];
-  const query = searchInput.value.trim().toLowerCase();
-  const mode = qualifiedOnly.value;
-  const sortKey = sortSelect.value;
-  const outcome = currentOutcomeFilter();
-
-  if (state.activeCategory === 'favs') {
-    items = items.filter((item) => state.favorites.has(item.address.toLowerCase()));
-  } else if (state.activeCategory !== 'all') {
-    items = items.filter((item) => normalizeCategory(item.source_category) === state.activeCategory);
-  }
-
-  if (query) {
-    items = items.filter((item) => [item.username, item.address, item.source, item.source_category, item.qualification_reason]
-      .filter(Boolean).some((value) => String(value).toLowerCase().includes(query)));
-  }
-  if (outcome) {
-    items = items.filter((item) => (displayWinStats(item).analyzed_positions || 0) > 0);
-  }
-  if (mode === 'qualified') items = items.filter((item) => item.qualified);
-  if (mode === 'rejected') items = items.filter((item) => !item.qualified);
-  items = items.filter(matchesBucketFilters);
-  items.sort((a, b) => compareItems(a, b, sortKey));
-  return items;
-}
-
-function matchesBucketFilters(item) {
-  const groupedBuckets = displayWinStats(item).grouped_buckets || [];
-  return GROUPED_BUCKET_LABELS.every((label, index) => {
-    const bucket = groupedBuckets.find((entry) => entry.label === label) || groupedBuckets[index] || null;
-    const activity = bucket?.total ?? 0;
-    const winRatePercent = (bucket?.win_rate ?? 0) * 100;
-    const activityMin = getNumericFilterValue(index, 'activity-min');
-    const activityMax = getNumericFilterValue(index, 'activity-max');
-    const winRateMin = getNumericFilterValue(index, 'winrate-min');
-    const winRateMax = getNumericFilterValue(index, 'winrate-max');
-
-    if (activityMin != null && activity < activityMin) return false;
-    if (activityMax != null && activity > activityMax) return false;
-    if (winRateMin != null && winRatePercent < winRateMin) return false;
-    if (winRateMax != null && winRatePercent > winRateMax) return false;
-    return true;
-  });
-}
-
-function getNumericFilterValue(bucketIndex, kind) {
-  const input = document.querySelector(`[data-bucket-index="${bucketIndex}"][data-filter-kind="${kind}"]`);
-  if (!input) return null;
-  const value = input.value.trim();
-  if (!value) return null;
-  const num = Number(value);
-  return Number.isFinite(num) ? num : null;
-}
-
-function getBucketSortState(bucketIndex, metric) {
-  return state.bucketSort && state.bucketSort.bucketIndex === bucketIndex && state.bucketSort.metric === metric
-    ? state.bucketSort.direction
-    : null;
-}
-
-function sortButtonLabel(direction) {
-  if (direction === 'desc') return '↓';
-  if (direction === 'asc') return '↑';
-  return '↕';
-}
-
-function getGroupedBucket(item, bucketIndex) {
-  const groupedBuckets = displayWinStats(item).grouped_buckets || [];
-  return groupedBuckets.find((entry) => entry.label === GROUPED_BUCKET_LABELS[bucketIndex]) || groupedBuckets[bucketIndex] || null;
-}
-
-function bucketMetricValue(item, bucketIndex, metric) {
-  const bucket = getGroupedBucket(item, bucketIndex);
-  if (!bucket) return 0;
-  if (metric === 'winrate') return bucket.win_rate ?? 0;
-  if (metric === 'activity') return bucket.total ?? 0;
-  return 0;
-}
-
-function compareItems(a, b, key) {
-  if (state.bucketSort) {
-    const av = bucketMetricValue(a, state.bucketSort.bucketIndex, state.bucketSort.metric);
-    const bv = bucketMetricValue(b, state.bucketSort.bucketIndex, state.bucketSort.metric);
-    return state.bucketSort.direction === 'asc' ? av - bv : bv - av;
-  }
-  const av = key === 'win_rate' ? (displayWinStats(a).win_rate ?? 0) : (a[key] ?? 0);
-  const bv = key === 'win_rate' ? (displayWinStats(b).win_rate ?? 0) : (b[key] ?? 0);
-  return bv - av;
-}
-
-function renderList() {
-  const items = filteredItems();
-  walletList.innerHTML = items.length
-    ? items.map(renderWalletCard).join('')
-    : '<div class="panel empty-state">Bu kategoride/filtrede wallet bulunamadı.</div>';
-}
-
-function renderWalletCard(item) {
-  const win = displayWinStats(item);
-  const grouped = win.grouped_buckets || [];
-  const statusClass = item.qualified ? 'good' : 'bad';
-  const favorite = isFavorite(item.address);
-  const rejectedReason = !item.qualified ? (item.qualification_reason || 'No rejection reason available') : '';
-  return `
-    <div class="panel wallet-card">
-      <div class="wallet-main">
-        <div>
-          <div class="wallet-title-row">
-            <button
-              type="button"
-              class="favorite-button${favorite ? ' active' : ''}"
-              data-favorite-address="${escapeHtml(item.address)}"
-              title="Favorilere ekle/kaldır"
-              aria-label="Favorilere ekle/kaldır"
-            >★</button>
-            <strong>${escapeHtml(item.username || item.address)}</strong>
-            <span class="badge ${statusClass}"${!item.qualified ? ` data-tooltip="${escapeHtml(rejectedReason)}" title="${escapeHtml(rejectedReason)}"` : ''}>${item.qualified ? 'qualified' : 'rejected'}</span>
-            <span class="badge source-category">${escapeHtml(categoryLabel(normalizeCategory(item.source_category)))}</span>
-          </div>
-          <div class="address">${escapeHtml(item.address)}</div>
-          <div class="wallet-metrics muted">
-            <span>Genel win rate: <strong>${formatPercent(win.win_rate)}</strong></span>
-            <span>Won: ${formatInt(win.wins)}</span>
-            <span>Lost: ${formatInt(win.losses)}</span>
-            <span>Sample: ${formatInt(win.analyzed_positions)}</span>
-            <span>Closed: ${formatInt(win.analyzed_closed_positions)}</span>
-            <span>Open loss: ${formatInt(win.analyzed_open_loss_positions)}</span>
-            <span>PnL: ${formatMoney(item.pnl)}</span>
-            <span>Trades: ${formatInt(item.last_trade_count)}</span>
-            <span>Source: ${escapeHtml(item.source || '—')}</span>
-          </div>
-        </div>
-        <div class="bucket-grid">
-          ${grouped.map(renderGroupedBucket).join('')}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function renderGroupedBucket(bucket) {
-  const cls = bucket.win_rate > 0.5 ? 'bucket-good' : 'bucket-bad';
-  return `
-    <div class="bucket-card ${cls}">
-      <div class="bucket-label">${escapeHtml(bucket.label)}</div>
-      <div class="bucket-rate">${formatPercent(bucket.win_rate)}</div>
-      <div class="muted">Activity: ${formatInt(bucket.total)}</div>
-      <div class="muted">Won: ${formatInt(bucket.wins)}</div>
-      <div class="muted">Lost: ${formatInt(bucket.losses)}</div>
-    </div>
-  `;
-}
-
-function isFavorite(address) {
-  return state.favorites.has(String(address).toLowerCase());
-}
-
-function toggleFavorite(address) {
-  const key = String(address).toLowerCase();
-  if (state.favorites.has(key)) state.favorites.delete(key);
-  else state.favorites.add(key);
-  persistFavorites();
-  renderCategories();
-  renderList();
-}
-
-function cycleBucketSort(bucketIndex, metric) {
-  const current = getBucketSortState(bucketIndex, metric);
-  let next = 'desc';
-  if (current === 'desc') next = 'asc';
-  else if (current === 'asc') next = null;
-
-  state.bucketSort = next ? { bucketIndex, metric, direction: next } : null;
-  updateBucketSortButtons();
-  renderList();
-}
-
-function updateBucketSortButtons() {
-  document.querySelectorAll('[data-sort-bucket-index]').forEach((button) => {
-    const bucketIndex = Number(button.dataset.sortBucketIndex);
-    const metric = button.dataset.sortMetric;
-    const direction = getBucketSortState(bucketIndex, metric);
-    button.textContent = sortButtonLabel(direction);
-    button.classList.toggle('active', Boolean(direction));
-  });
-}
-
-function resetBucketFilters() {
-  document.querySelectorAll('[data-bucket-index]').forEach((input) => {
-    input.value = '';
-  });
-  renderList();
-}
-
-async function addWallet() {
-  const address = walletAddressInput.value.trim().toLowerCase();
-  if (!address) {
-    addWalletStatus.textContent = 'Wallet address gir.';
-    return;
-  }
-  addWalletStatus.textContent = 'Analiz ediliyor...';
-  addWalletButton.disabled = true;
-  walletAddressInput.disabled = true;
-  try {
-    const res = await fetch('/api/custom-wallets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ address }),
-    });
-    const payload = await res.json();
-    if (!res.ok) throw new Error(payload.error || 'wallet eklenemedi');
-    addWalletStatus.textContent = `Eklendi: ${payload.address}`;
-    walletAddressInput.value = '';
-    await load();
-  } catch (error) {
-    addWalletStatus.textContent = error.message || 'wallet eklenemedi';
-  } finally {
-    addWalletButton.disabled = false;
-    walletAddressInput.disabled = false;
-  }
-}
-
-function formatMoney(value) {
+function formatCents(value) {
   if (value == null) return '—';
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
+  return `${value}¢`;
 }
-function formatPercent(value) {
-  if (value == null) return '—';
-  return `%${(value * 100).toFixed(1)}`;
+
+function formatTime(ts) {
+  const d = new Date(ts);
+  return d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) + ' UTC';
 }
-function formatInt(value) {
-  if (value == null) return '—';
-  return new Intl.NumberFormat('en-US').format(value);
-}
+
 function escapeHtml(value) {
   return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 }
 
-[searchInput, outcomeInput, qualifiedOnly, sortSelect].filter(Boolean).forEach((el) => el.addEventListener('input', renderList));
-document.addEventListener('input', (event) => {
-  if (event.target.matches('[data-bucket-index]')) renderList();
-});
-document.addEventListener('click', (event) => {
-  const favoriteButton = event.target.closest('[data-favorite-address]');
-  if (favoriteButton) {
-    event.preventDefault();
-    event.stopPropagation();
-    toggleFavorite(favoriteButton.dataset.favoriteAddress);
+function showTooltip(event) {
+  const payloadRaw = event.target?.dataset?.payload;
+  if (!payloadRaw) {
+    chartTooltip.classList.add('hidden');
     return;
   }
-
-  const categoryButton = event.target.closest('[data-category]');
-  if (categoryButton) {
-    state.activeCategory = categoryButton.dataset.category;
-    renderCategories();
-    renderList();
+  const payload = JSON.parse(decodeURIComponent(payloadRaw));
+  chartTooltip.classList.remove('hidden');
+  chartTooltip.style.left = `${event.offsetX + 18}px`;
+  chartTooltip.style.top = `${event.offsetY + 18}px`;
+  if (payload.type === 'marker') {
+    chartTooltip.innerHTML = `
+      <div class="tooltip-title">Forecast değişimi</div>
+      <div>${escapeHtml(payload.marker.ts || '')}</div>
+      <div>Top 5 ortalama: <strong>${payload.marker.top5_avg_c}°C</strong></div>
+      <div>Günün max'ı: <strong>${payload.marker.day_max_c}°C</strong></div>
+    `;
     return;
   }
+  const point = payload.point || {};
+  chartTooltip.innerHTML = `
+    <div class="tooltip-title">${escapeHtml(payload.label || '')}</div>
+    <div>${escapeHtml(point.actual_ts || point.ts || '')}</div>
+    <div>YES: <strong>${formatCents(point.yes_probability_cents)}</strong></div>
+    <div>NO: <strong>${formatCents(point.no_probability_cents)}</strong></div>
+    <div>YES bid/ask: ${formatCents(point.yes_best_bid_sell_cents)} / ${formatCents(point.yes_best_ask_buy_cents)}</div>
+    <div>NO bid/ask: ${formatCents(point.no_best_bid_sell_cents)} / ${formatCents(point.no_best_ask_buy_cents)}</div>
+  `;
+}
 
-  const button = event.target.closest('[data-sort-bucket-index]');
-  if (!button) return;
-  cycleBucketSort(Number(button.dataset.sortBucketIndex), button.dataset.sortMetric);
-});
-refreshButton.addEventListener('click', load);
-resetBucketFiltersButton.addEventListener('click', resetBucketFilters);
-addWalletButton.addEventListener('click', addWallet);
-walletAddressInput.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') {
-    event.preventDefault();
-    addWallet();
-  }
-});
-setInterval(async () => {
-  try {
-    if (state.loading) return;
-    const res = await fetch('/api/scan-state');
-    state.scanState = await res.json();
-    renderScanProgress();
-    renderSummary();
-    const shouldRefreshData = state.scanState?.running && (Date.now() - state.lastFullLoadAt > 10000);
-    if (shouldRefreshData) {
-      await load();
-    }
-  } catch (error) {
-    console.error(error);
-  }
-}, 2500);
+chartSvg.addEventListener('mousemove', showTooltip);
+chartSvg.addEventListener('mouseleave', () => chartTooltip.classList.add('hidden'));
+reloadButton.addEventListener('click', loadSeries);
+citySelect.addEventListener('change', async () => { await loadEvents(); await loadSeries(); });
+dateSelect.addEventListener('change', loadSeries);
+intervalSelect.addEventListener('change', loadSeries);
 
-load().catch((error) => { console.error(error); walletList.innerHTML = '<div class="panel empty-state">Veri yüklenemedi</div>'; });
+(async function init() {
+  await loadCities();
+  await loadEvents();
+  await loadSeries();
+})().catch((error) => {
+  console.error(error);
+  chartSubtitle.textContent = 'Dashboard yüklenemedi';
+});

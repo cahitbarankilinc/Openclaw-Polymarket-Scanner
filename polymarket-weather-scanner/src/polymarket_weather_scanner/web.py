@@ -5,20 +5,25 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 import contextlib
+import time
+from threading import Event, Thread
 
 from .config import APP_DIR
+from .dashboard_data import TrackerDashboardStore
 from .database import ScannerDatabase
 from .scanner import WeatherWalletScanner, normalize_win_stats_payload
+from .tracker import PolymarketEventTracker
 
 
 WEB_DIR = Path(__file__).with_name('web')
 
 
 class ScannerWebHandler(SimpleHTTPRequestHandler):
-    def __init__(self, *args, db: ScannerDatabase, web_dir: Path, scanner: WeatherWalletScanner, **kwargs):
+    def __init__(self, *args, db: ScannerDatabase, web_dir: Path, scanner: WeatherWalletScanner, tracker_store: TrackerDashboardStore, **kwargs):
         self.db = db
         self.web_dir = web_dir
         self.scanner = scanner
+        self.tracker_store = tracker_store
         super().__init__(*args, directory=str(web_dir), **kwargs)
 
     def end_headers(self) -> None:
@@ -37,6 +42,15 @@ class ScannerWebHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == '/api/scan-state':
             self.handle_scan_state()
+            return
+        if parsed.path == '/api/tracker/cities':
+            self.handle_tracker_cities()
+            return
+        if parsed.path == '/api/tracker/events':
+            self.handle_tracker_events(parsed.query)
+            return
+        if parsed.path == '/api/tracker/series':
+            self.handle_tracker_series(parsed.query)
             return
         if parsed.path == '/health':
             self.write_json({'ok': True})
@@ -81,6 +95,27 @@ class ScannerWebHandler(SimpleHTTPRequestHandler):
 
     def handle_scan_state(self) -> None:
         self.write_json(self.scanner.read_scan_state())
+
+    def handle_tracker_cities(self) -> None:
+        self.write_json({'cities': self.tracker_store.list_cities()})
+
+    def handle_tracker_events(self, query_string: str) -> None:
+        params = parse_qs(query_string)
+        city_slug = str(params.get('city', [''])[0]).strip().lower()
+        if not city_slug:
+            self.write_json({'error': 'city is required'}, status=400)
+            return
+        self.write_json({'events': self.tracker_store.list_dates_for_city(city_slug)})
+
+    def handle_tracker_series(self, query_string: str) -> None:
+        params = parse_qs(query_string)
+        city_slug = str(params.get('city', [''])[0]).strip().lower()
+        target_date = str(params.get('date', [''])[0]).strip()
+        interval = str(params.get('interval', ['5m'])[0]).strip().lower()
+        if not city_slug or not target_date:
+            self.write_json({'error': 'city and date are required'}, status=400)
+            return
+        self.write_json(self.tracker_store.build_series(city_slug, target_date, interval))
 
     def handle_add_wallet(self) -> None:
         try:
@@ -134,9 +169,26 @@ def serve(host: str = '127.0.0.1', port: int = 8765) -> None:
     db = ScannerDatabase(APP_DIR / 'data' / 'scanner.db')
     db.init()
     scanner = WeatherWalletScanner()
+    tracker_store = TrackerDashboardStore()
+    tracker = PolymarketEventTracker()
+    stop_event = Event()
+
+    def tracker_loop() -> None:
+        while not stop_event.is_set():
+            started = time.monotonic()
+            try:
+                tracker.run_cycle(forecast_interval_seconds=300, discovery_interval_seconds=1800)
+            except Exception as exc:  # noqa: BLE001
+                print(f'tracker loop error: {exc}')
+            elapsed = time.monotonic() - started
+            sleep_for = max(1, 60 - int(elapsed))
+            stop_event.wait(sleep_for)
+
+    tracker_thread = Thread(target=tracker_loop, name='tracker-loop', daemon=True)
+    tracker_thread.start()
 
     def handler(*args, **kwargs):
-        return ScannerWebHandler(*args, db=db, web_dir=WEB_DIR, scanner=scanner, **kwargs)
+        return ScannerWebHandler(*args, db=db, web_dir=WEB_DIR, scanner=scanner, tracker_store=tracker_store, **kwargs)
 
     server = ThreadingHTTPServer((host, port), handler)
     print(f'frontend running at http://{host}:{port}')
@@ -145,4 +197,5 @@ def serve(host: str = '127.0.0.1', port: int = 8765) -> None:
     except KeyboardInterrupt:
         print('\nshutting down')
     finally:
+        stop_event.set()
         server.server_close()
