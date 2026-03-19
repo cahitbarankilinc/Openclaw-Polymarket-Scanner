@@ -263,8 +263,3 @@ intervalSelect.addEventListener('change', loadSeries);
   console.error(error);
   chartSubtitle.textContent = 'Dashboard yüklenemedi';
 });
-oadSeries();
-})().catch((error) => {
-  console.error(error);
-  chartSubtitle.textContent = 'Dashboard yüklenemedi';
-});
