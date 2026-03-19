@@ -77,6 +77,7 @@ def main() -> int:
         if args.once:
             summary = tracker.run_cycle(
                 forecast_interval_seconds=args.forecast_interval,
+                discovery_interval_seconds=args.discovery_interval,
                 city_names=args.city or None,
             )
             print(json.dumps(summary, ensure_ascii=False))
@@ -91,6 +92,10 @@ def main() -> int:
 
     parser.error('unknown command')
     return 2
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
 
 
 if __name__ == '__main__':

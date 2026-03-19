@@ -171,6 +171,7 @@ class PolymarketEventTracker:
         *,
         market_interval_seconds: int = 60,
         forecast_interval_seconds: int = 300,
+        discovery_interval_seconds: int = 1800,
         max_cycles: int | None = None,
         city_names: list[str] | None = None,
     ) -> None:
@@ -179,7 +180,11 @@ class PolymarketEventTracker:
         while True:
             cycle += 1
             started = time.time()
-            summary = self.run_cycle(forecast_interval_seconds=forecast_interval_seconds, city_names=[city.name for city in selected])
+            summary = self.run_cycle(
+                forecast_interval_seconds=forecast_interval_seconds,
+                discovery_interval_seconds=discovery_interval_seconds,
+                city_names=[city.name for city in selected],
+            )
             print(
                 f"cycle={cycle} cities={summary['cities']} open_events={summary['open_events']} "
                 f"market_snapshots={summary['market_snapshots']} forecast_snapshots={summary['forecast_snapshots']}"
@@ -189,9 +194,15 @@ class PolymarketEventTracker:
             elapsed = time.time() - started
             time.sleep(max(1, market_interval_seconds - int(elapsed)))
 
-    def run_cycle(self, *, forecast_interval_seconds: int = 300, city_names: list[str] | None = None) -> dict[str, Any]:
+    def run_cycle(
+        self,
+        *,
+        forecast_interval_seconds: int = 300,
+        discovery_interval_seconds: int = 1800,
+        city_names: list[str] | None = None,
+    ) -> dict[str, Any]:
         selected = self._selected_cities(city_names)
-        open_events = self.discover_all_open_events(selected)
+        open_events = self._load_or_refresh_open_events(selected, discovery_interval_seconds)
         market_snapshots = 0
         forecast_snapshots = 0
         state = {
@@ -243,6 +254,27 @@ class PolymarketEventTracker:
         for city in cities:
             out[city.name] = self.discover_open_events_for_city(city)
         return out
+
+    def _load_or_refresh_open_events(self, cities: list[TrackingCity], discovery_interval_seconds: int) -> dict[str, list[dict[str, Any]]]:
+        cache_path = self.root_dir / 'open_events_cache.json'
+        cached: dict[str, Any] | None = None
+        if cache_path.exists():
+            age = time.time() - cache_path.stat().st_mtime
+            if age < discovery_interval_seconds:
+                try:
+                    cached = json.loads(cache_path.read_text(encoding='utf-8'))
+                except Exception:
+                    cached = None
+        if cached is None:
+            events = self.discover_all_open_events(cities)
+            cache_payload = {
+                'generated_at_utc': utc_now_iso(),
+                'cities': events,
+            }
+            cache_path.write_text(json.dumps(cache_payload, ensure_ascii=False, indent=2), encoding='utf-8')
+            return events
+        city_map = cached.get('cities') or {}
+        return {city.name: list(city_map.get(city.name) or []) for city in cities}
 
     def discover_open_events_for_city(self, city: TrackingCity) -> list[dict[str, Any]]:
         payload = self.client.public_search(f'Highest temperature in {city.name}', limit_per_type=25, page=1)

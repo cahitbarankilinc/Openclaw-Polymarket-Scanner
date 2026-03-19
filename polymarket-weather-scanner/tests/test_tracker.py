@@ -84,7 +84,7 @@ class TrackerTests(unittest.TestCase):
                 ],
             )
 
-            summary = tracker.run_cycle(forecast_interval_seconds=300)
+            summary = tracker.run_cycle(forecast_interval_seconds=300, discovery_interval_seconds=1800)
             self.assertEqual(summary['cities'], 1)
             self.assertEqual(summary['open_events'], 1)
             self.assertEqual(summary['market_snapshots'], 1)
