@@ -95,6 +95,14 @@ class TrackerTests(unittest.TestCase):
             self.assertTrue((event_dir / 'forecast_hourly.jsonl').exists())
             self.assertTrue((event_dir / 'event_meta.json').exists())
 
+            market_line = (event_dir / 'market_prices.jsonl').read_text(encoding='utf-8').splitlines()[-1]
+            market_obj = json.loads(market_line)
+            first_market = market_obj['markets'][0]
+            self.assertEqual(first_market['yes_best_bid_sell_cents'], 41)
+            self.assertEqual(first_market['yes_best_ask_buy_cents'], 43)
+            self.assertEqual(first_market['no_best_bid_sell_cents'], 57)
+            self.assertEqual(first_market['no_best_ask_buy_cents'], 59)
+
 
 if __name__ == '__main__':
     unittest.main()

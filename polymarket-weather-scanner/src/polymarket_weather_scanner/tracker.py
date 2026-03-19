@@ -295,6 +295,9 @@ class PolymarketEventTracker:
             yes_sell = to_float(market.get('bestBid'))
             yes_buy = to_float(market.get('bestAsk'))
             yes_last = to_float(market.get('lastTradePrice'))
+            no_sell = complement_price(yes_buy)
+            no_buy = complement_price(yes_sell)
+            no_last = complement_price(yes_last)
             row = {
                 'market_id': str(market.get('id') or ''),
                 'condition_id': market.get('conditionId'),
@@ -313,14 +316,22 @@ class PolymarketEventTracker:
                 'yes_best_ask_buy_cents': to_cents(yes_buy),
                 'yes_last_trade_price': yes_last,
                 'yes_last_trade_cents': to_cents(yes_last),
+                'no_best_bid_sell_price': no_sell,
+                'no_best_bid_sell_cents': to_cents(no_sell),
+                'no_best_ask_buy_price': no_buy,
+                'no_best_ask_buy_cents': to_cents(no_buy),
+                'no_last_trade_price': no_last,
+                'no_last_trade_cents': to_cents(no_last),
                 'spread': to_float(market.get('spread')),
                 'spread_cents': to_cents(market.get('spread')),
                 'market_slug': market.get('slug'),
                 'market_active': bool(market.get('active')),
                 'market_closed': bool(market.get('closed')),
                 'outcome_price_semantics': {
-                    'best_bid': 'best price to SELL YES',
-                    'best_ask': 'best price to BUY YES',
+                    'yes_best_bid': 'best price to SELL YES',
+                    'yes_best_ask': 'best price to BUY YES',
+                    'no_best_bid': 'best price to SELL NO (derived as 1 - YES best_ask)',
+                    'no_best_ask': 'best price to BUY NO (derived as 1 - YES best_bid)',
                 },
             }
             rows.append(row)
@@ -429,6 +440,13 @@ def to_cents(value: Any) -> int | None:
     if num is None:
         return None
     return int(round(num * 100))
+
+
+def complement_price(value: Any) -> float | None:
+    num = to_float(value)
+    if num is None:
+        return None
+    return round(1.0 - num, 6)
 
 
 def f_to_c(value: Any) -> float | None:
