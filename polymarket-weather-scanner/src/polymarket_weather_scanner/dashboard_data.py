@@ -115,6 +115,13 @@ class TrackerDashboardStore:
             top5_avg = round(sum(top[:5]) / min(len(top), 5), 2)
             signature = (top5_avg, day_max)
             if previous_signature is None:
+                markers.append({
+                    'ts': snap.get('fetched_at_utc'),
+                    'fetched_at_source_local': snap.get('fetched_at_source_local'),
+                    'top5_avg_c': top5_avg,
+                    'day_max_c': day_max,
+                    'marker_kind': 'baseline',
+                })
                 previous_signature = signature
                 continue
             if signature != previous_signature:
@@ -123,6 +130,7 @@ class TrackerDashboardStore:
                     'fetched_at_source_local': snap.get('fetched_at_source_local'),
                     'top5_avg_c': top5_avg,
                     'day_max_c': day_max,
+                    'marker_kind': 'change',
                 })
                 previous_signature = signature
         return markers

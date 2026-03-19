@@ -61,9 +61,13 @@ class DashboardDataTests(unittest.TestCase):
             self.assertEqual(len(payload['market_series'][0]['points']), 2)
             self.assertEqual(payload['market_series'][0]['points'][0]['yes_probability_cents'], 25)
             self.assertEqual(payload['market_series'][0]['points'][1]['yes_probability_cents'], 27)
-            self.assertEqual(len(payload['forecast_markers']), 1)
-            self.assertEqual(payload['forecast_markers'][0]['day_max_c'], 11)
-            self.assertEqual(payload['forecast_markers'][0]['top5_avg_c'], 9.0)
+            self.assertEqual(len(payload['forecast_markers']), 2)
+            self.assertEqual(payload['forecast_markers'][0]['marker_kind'], 'baseline')
+            self.assertEqual(payload['forecast_markers'][0]['day_max_c'], 10)
+            self.assertEqual(payload['forecast_markers'][0]['top5_avg_c'], 8.0)
+            self.assertEqual(payload['forecast_markers'][1]['marker_kind'], 'change')
+            self.assertEqual(payload['forecast_markers'][1]['day_max_c'], 11)
+            self.assertEqual(payload['forecast_markers'][1]['top5_avg_c'], 9.0)
 
 
 if __name__ == '__main__':

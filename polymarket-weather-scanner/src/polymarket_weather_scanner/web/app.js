@@ -175,8 +175,9 @@ function showTooltip(event) {
   chartTooltip.style.left = `${event.offsetX + 18}px`;
   chartTooltip.style.top = `${event.offsetY + 18}px`;
   if (payload.type === 'marker') {
+    const title = payload.marker.marker_kind === 'baseline' ? 'Forecast başlangıç noktası' : 'Forecast değişimi';
     chartTooltip.innerHTML = `
-      <div class="tooltip-title">Forecast değişimi</div>
+      <div class="tooltip-title">${escapeHtml(title)}</div>
       <div>${escapeHtml(payload.marker.ts || '')}</div>
       <div>Top 5 ortalama: <strong>${payload.marker.top5_avg_c}°C</strong></div>
       <div>Günün max'ı: <strong>${payload.marker.day_max_c}°C</strong></div>
