@@ -20,6 +20,8 @@ const marketTableBody = document.getElementById('marketTableBody');
 const tableHint = document.getElementById('tableHint');
 const yesModeButton = document.getElementById('yesModeButton');
 const noModeButton = document.getElementById('noModeButton');
+const showAllBucketsButton = document.getElementById('showAllBucketsButton');
+const hideAllBucketsButton = document.getElementById('hideAllBucketsButton');
 
 const palette = ['#66d9ef', '#ffd166', '#ef476f', '#06d6a0', '#a78bfa', '#f97316', '#22c55e', '#f43f5e', '#38bdf8', '#eab308', '#fb7185'];
 
