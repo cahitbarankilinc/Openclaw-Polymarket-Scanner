@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from .scanner import WeatherWalletScanner
+from .tracker import PolymarketEventTracker
 from .web import serve
 
 
@@ -27,6 +29,13 @@ def build_parser() -> argparse.ArgumentParser:
     serve_parser.add_argument('--host', default='127.0.0.1')
     serve_parser.add_argument('--port', type=int, default=8765)
 
+    track = sub.add_parser('track', help='track open weather events and source forecasts')
+    track.add_argument('--city', action='append', default=[], help='limit to one or more city names')
+    track.add_argument('--market-interval', type=int, default=60, help='seconds between market snapshots in loop mode')
+    track.add_argument('--forecast-interval', type=int, default=300, help='seconds between forecast refreshes per event')
+    track.add_argument('--cycles', type=int, default=None, help='max cycles in loop mode')
+    track.add_argument('--once', action='store_true', help='run a single cycle and exit')
+
     return parser
 
 
@@ -41,7 +50,7 @@ def main() -> int:
         print(f'scan complete: {len(results)} wallets checked, {len(qualified)} qualified')
         for item in qualified[:20]:
             pnl_text = 'n/a' if item.pnl is None else f'{item.pnl:.2f}'
-            print(f"{item.address} | pnl={pnl_text} | markets={item.distinct_markets_traded} | weather_ratio={item.weather_trade_ratio:.2%}")
+            print(f"{item.address} | pnl={pnl_text} | trades={item.last_trade_count} | sells={item.sell_trade_count}")
         return 0
 
     if args.command == 'report':
@@ -50,8 +59,7 @@ def main() -> int:
             pnl_text = 'n/a' if row['pnl'] is None else f"{row['pnl']:.2f}"
             print(
                 f"{row['address']} | qualified={row['qualified']} | pnl={pnl_text} | "
-                f"markets={row['distinct_markets_traded']} | sells={row['sell_trade_count']} | "
-                f"weather={row['weather_trade_count']} ({row['weather_trade_ratio']:.2%}) | {row['qualification_reason']}"
+                f"trades={row['last_trade_count']} | sells={row['sell_trade_count']} | {row['qualification_reason']}"
             )
         return 0
 
@@ -62,6 +70,23 @@ def main() -> int:
 
     if args.command == 'serve':
         serve(host=args.host, port=args.port)
+        return 0
+
+    if args.command == 'track':
+        tracker = PolymarketEventTracker()
+        if args.once:
+            summary = tracker.run_cycle(
+                forecast_interval_seconds=args.forecast_interval,
+                city_names=args.city or None,
+            )
+            print(json.dumps(summary, ensure_ascii=False))
+            return 0
+        tracker.run_forever(
+            market_interval_seconds=args.market_interval,
+            forecast_interval_seconds=args.forecast_interval,
+            max_cycles=args.cycles,
+            city_names=args.city or None,
+        )
         return 0
 
     parser.error('unknown command')
