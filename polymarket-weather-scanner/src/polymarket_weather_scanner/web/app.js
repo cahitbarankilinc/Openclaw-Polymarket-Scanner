@@ -155,7 +155,8 @@ function renderChart() {
   const markers = (series.forecast_markers || []).map((marker) => {
     const x = xFor(marker.ts);
     const payload = encodeURIComponent(JSON.stringify({ type: 'marker', marker }));
-    return `<line x1="${x}" y1="${margin.top}" x2="${x}" y2="${height - margin.bottom}" class="forecast-marker" data-payload="${payload}"></line>`;
+    const markerColorClass = marker.marker_color === 'green' ? ' forecast-marker-green' : '';
+    return `<line x1="${x}" y1="${margin.top}" x2="${x}" y2="${height - margin.bottom}" class="forecast-marker${markerColorClass}" data-payload="${payload}"></line>`;
   }).join('');
 
   chartSvg.innerHTML = `
@@ -213,12 +214,27 @@ function showTooltip(event) {
   chartTooltip.style.left = `${event.offsetX + 18}px`;
   chartTooltip.style.top = `${event.offsetY + 18}px`;
   if (payload.type === 'marker') {
-    const title = payload.marker.marker_kind === 'baseline' ? 'Forecast başlangıç noktası' : 'Forecast değişimi';
+    const marker = payload.marker || {};
+    const title = marker.marker_kind === 'baseline'
+      ? 'Forecast başlangıç noktası'
+      : marker.marker_kind === 'closed_day_max'
+        ? (marker.marker_label || "Günün max'ı")
+        : 'Forecast değişimi';
+    if (marker.marker_kind === 'closed_day_max') {
+      chartTooltip.innerHTML = `
+        <div class="tooltip-title">${escapeHtml(title)}</div>
+        <div>${escapeHtml(marker.ts || '')}</div>
+        <div>Yuvarlanan max: <strong>${marker.day_max_c}°C</strong></div>
+        <div>Kazanan bucket: <strong>${escapeHtml(marker.resolved_bucket_label || '—')}</strong></div>
+        <div>Durum: <strong>${marker.prediction_correct ? 'doğru tahmin' : 'yanlış tahmin'}</strong></div>
+      `;
+      return;
+    }
     chartTooltip.innerHTML = `
       <div class="tooltip-title">${escapeHtml(title)}</div>
-      <div>${escapeHtml(payload.marker.ts || '')}</div>
-      <div>Top 5 ortalama: <strong>${payload.marker.top5_avg_c}°C</strong></div>
-      <div>Günün max'ı: <strong>${payload.marker.day_max_c}°C</strong></div>
+      <div>${escapeHtml(marker.ts || '')}</div>
+      <div>Top 5 ortalama: <strong>${marker.top5_avg_c}°C</strong></div>
+      <div>Günün max'ı: <strong>${marker.day_max_c}°C</strong></div>
     `;
     return;
   }

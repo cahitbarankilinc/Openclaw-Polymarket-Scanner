@@ -62,6 +62,7 @@ body.mode-no #chartSvg { background: linear-gradient(180deg, rgba(255,80,110,0.1
 .axis-label { fill: #9aa7c7; font-size: 12px; }
 .axis-left { text-anchor: end; }
 .forecast-marker { stroke: var(--marker); stroke-width: 2.5; opacity: 0.92; cursor: pointer; }
+.forecast-marker-green { stroke: #22c55e; }
 .point-dot { cursor: pointer; }
 .chart-tooltip { position: absolute; min-width: 220px; max-width: 280px; padding: 12px 14px; background: rgba(10, 14, 24, 0.96); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 12px 28px rgba(0,0,0,0.35); pointer-events: none; z-index: 20; }
 .chart-tooltip.hidden { display: none; }

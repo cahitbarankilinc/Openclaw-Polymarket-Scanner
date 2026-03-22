@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+import re
 
 from .config import APP_DIR
 
@@ -69,6 +70,8 @@ class TrackerDashboardStore:
         if not market_snapshots and historical_series_path.exists():
             historical = self._read_json(historical_series_path)
             historical_market_series = self._aggregate_prebuilt_market_series(historical.get('market_series') or [], interval_seconds)
+            markers = list(historical.get('forecast_markers') or [])
+            markers.extend(self._build_closed_event_result_markers(historical_market_series, markers))
             return {
                 'city_slug': city_slug,
                 'city': historical.get('city') or deslugify(city_slug),
@@ -80,7 +83,7 @@ class TrackerDashboardStore:
                 'source_url_actual': historical.get('source_url_actual'),
                 'source_url_matches_expected': historical.get('source_url_matches_expected'),
                 'market_series': historical_market_series,
-                'forecast_markers': historical.get('forecast_markers') or [],
+                'forecast_markers': markers,
                 'snapshot_count': max((len(row.get('points') or []) for row in historical_market_series), default=0),
                 'forecast_snapshot_count': historical.get('forecast_snapshot_count') or 0,
                 'historical_mode': True,
@@ -88,6 +91,7 @@ class TrackerDashboardStore:
 
         market_series = self._aggregate_market_snapshots(market_snapshots, interval_seconds)
         markers = self._build_forecast_markers(forecast_snapshots)
+        markers.extend(self._build_closed_event_result_markers(market_series, markers))
         return {
             'city_slug': city_slug,
             'city': meta.get('event_title', '').split(' in ')[1].split(' on ')[0] if meta.get('event_title') else deslugify(city_slug),
@@ -191,6 +195,71 @@ class TrackerDashboardStore:
         out.sort(key=lambda item: sort_bucket_label(item.get('label') or item.get('market_id') or ''))
         return out
 
+    def _build_closed_event_result_markers(self, market_series: list[dict[str, Any]], base_markers: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        resolved = self._find_resolved_market(market_series)
+        if resolved is None:
+            return []
+        rounded_day_max = self._extract_closed_event_day_max(base_markers)
+        if rounded_day_max is None:
+            return []
+        fits = bucket_label_matches_temperature(resolved.get('label') or '', rounded_day_max)
+        marker_ts = self._pick_closed_event_marker_ts(base_markers, rounded_day_max) or resolved.get('actual_ts') or resolved.get('ts')
+        if not marker_ts:
+            return []
+        return [{
+            'ts': marker_ts,
+            'fetched_at_source_local': None,
+            'top5_avg_c': rounded_day_max,
+            'day_max_c': rounded_day_max,
+            'marker_kind': 'closed_day_max',
+            'marker_label': "Günün max'ı",
+            'marker_source': 'closed_event_resolution',
+            'observed_temp_c': rounded_day_max,
+            'resolved_bucket_label': resolved.get('label'),
+            'resolved_yes_probability_cents': resolved.get('yes_probability_cents'),
+            'marker_color': 'green' if fits else 'red',
+            'prediction_correct': fits,
+        }]
+
+    def _find_resolved_market(self, market_series: list[dict[str, Any]], threshold_cents: int = 99) -> dict[str, Any] | None:
+        winner: dict[str, Any] | None = None
+        for row in market_series:
+            points = row.get('points') or []
+            if not points:
+                continue
+            point = points[-1]
+            yes_probability_cents = to_int(point.get('yes_probability_cents'))
+            if yes_probability_cents is None or yes_probability_cents < threshold_cents:
+                continue
+            candidate = {
+                'market_id': row.get('market_id'),
+                'label': row.get('label'),
+                'yes_probability_cents': yes_probability_cents,
+                'ts': point.get('ts'),
+                'actual_ts': point.get('actual_ts'),
+            }
+            if winner is None or yes_probability_cents > winner['yes_probability_cents']:
+                winner = candidate
+        return winner
+
+    def _extract_closed_event_day_max(self, markers: list[dict[str, Any]]) -> int | None:
+        observed_values = [round_half_up(value) for value in (to_float(marker.get('observed_temp_c')) for marker in markers) if value is not None]
+        if observed_values:
+            return max(observed_values)
+        day_max_values = [round_half_up(value) for value in (to_float(marker.get('day_max_c')) for marker in markers) if value is not None]
+        if day_max_values:
+            return max(day_max_values)
+        return None
+
+    def _pick_closed_event_marker_ts(self, markers: list[dict[str, Any]], rounded_day_max: int) -> str | None:
+        observed_matches = [marker.get('ts') for marker in markers if round_half_up(to_float(marker.get('observed_temp_c'))) == rounded_day_max and marker.get('ts')]
+        if observed_matches:
+            return observed_matches[0]
+        day_max_matches = [marker.get('ts') for marker in markers if round_half_up(to_float(marker.get('day_max_c'))) == rounded_day_max and marker.get('ts')]
+        if day_max_matches:
+            return day_max_matches[-1]
+        return None
+
     @staticmethod
     def _read_json(path: Path) -> dict[str, Any]:
         return json.loads(path.read_text(encoding='utf-8'))
@@ -232,6 +301,36 @@ def to_float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def to_int(value: Any) -> int | None:
+    if value is None or value == '':
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def round_half_up(value: float | None) -> int | None:
+    if value is None:
+        return None
+    if value >= 0:
+        return int(value + 0.5)
+    return int(value - 0.5)
+
+
+def bucket_label_matches_temperature(label: str, rounded_temp_c: int) -> bool:
+    match = re.search(r'-?\d+', label)
+    if not match:
+        return False
+    bucket_value = int(match.group(0))
+    lowered = label.lower()
+    if 'or higher' in lowered or 'or above' in lowered:
+        return rounded_temp_c >= bucket_value
+    if 'or below' in lowered:
+        return rounded_temp_c <= bucket_value
+    return rounded_temp_c == bucket_value
 
 
 def sort_bucket_label(label: str) -> tuple[int, str]:
