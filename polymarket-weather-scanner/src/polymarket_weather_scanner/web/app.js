@@ -215,21 +215,7 @@ function showTooltip(event) {
   chartTooltip.style.top = `${event.offsetY + 18}px`;
   if (payload.type === 'marker') {
     const marker = payload.marker || {};
-    const title = marker.marker_kind === 'baseline'
-      ? 'Forecast başlangıç noktası'
-      : marker.marker_kind === 'closed_day_max'
-        ? (marker.marker_label || "Günün max'ı")
-        : 'Forecast değişimi';
-    if (marker.marker_kind === 'closed_day_max') {
-      chartTooltip.innerHTML = `
-        <div class="tooltip-title">${escapeHtml(title)}</div>
-        <div>${escapeHtml(marker.ts || '')}</div>
-        <div>Yuvarlanan max: <strong>${marker.day_max_c}°C</strong></div>
-        <div>Kazanan bucket: <strong>${escapeHtml(marker.resolved_bucket_label || '—')}</strong></div>
-        <div>Durum: <strong>${marker.prediction_correct ? 'doğru tahmin' : 'yanlış tahmin'}</strong></div>
-      `;
-      return;
-    }
+    const title = marker.marker_kind === 'baseline' ? 'Forecast başlangıç noktası' : 'Forecast değişimi';
     chartTooltip.innerHTML = `
       <div class="tooltip-title">${escapeHtml(title)}</div>
       <div>${escapeHtml(marker.ts || '')}</div>
