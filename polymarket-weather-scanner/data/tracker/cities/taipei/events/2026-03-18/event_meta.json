@@ -1,0 +1,10 @@
+{
+  "event_id": "highest-temperature-in-taipei-on-march-18-2026",
+  "event_slug": "highest-temperature-in-taipei-on-march-18-2026",
+  "event_title": "Highest temperature in Taipei on March 18?",
+  "target_date": "2026-03-18",
+  "event_end_utc": "2026-03-19T12:00:00Z",
+  "source_url_expected": "https://www.wunderground.com/history/daily/tw/taipei/RCSS",
+  "source_url_actual": "https://www.wunderground.com/history/daily/tw/taipei/RCSS",
+  "source_url_matches_expected": true
+}

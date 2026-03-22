@@ -40,11 +40,23 @@ class TrackerDashboardStore:
 
     def list_dates_for_city(self, city_slug: str) -> list[dict[str, Any]]:
         city_dir = self.root_dir / 'cities' / city_slug
+        events: list[dict[str, Any]] = []
         meta_path = city_dir / 'open_events.json'
-        payload = self._read_json(meta_path) if meta_path.exists() else {}
-        events = payload.get('open_events') or []
-        events.sort(key=lambda item: item.get('target_date') or '')
-        return events
+        if meta_path.exists():
+            payload = self._read_json(meta_path)
+            events.extend(payload.get('open_events') or [])
+        history_path = city_dir / 'history_events.json'
+        if history_path.exists():
+            payload = self._read_json(history_path)
+            events.extend(payload.get('historical_events') or [])
+        dedup: dict[str, dict[str, Any]] = {}
+        for item in events:
+            target_date = item.get('target_date') or ''
+            if target_date:
+                dedup[target_date] = item
+        rows = list(dedup.values())
+        rows.sort(key=lambda item: item.get('target_date') or '')
+        return rows
 
     def build_series(self, city_slug: str, target_date: str, interval: str = '5m') -> dict[str, Any]:
         interval_seconds = INTERVAL_SECONDS.get(interval, 300)
@@ -52,6 +64,26 @@ class TrackerDashboardStore:
         meta = self._read_json(event_dir / 'event_meta.json') if (event_dir / 'event_meta.json').exists() else {}
         market_snapshots = self._read_jsonl(event_dir / 'market_prices.jsonl')
         forecast_snapshots = self._read_jsonl(event_dir / 'forecast_hourly.jsonl')
+
+        historical_series_path = event_dir / 'historical_series.json'
+        if not market_snapshots and historical_series_path.exists():
+            historical = self._read_json(historical_series_path)
+            return {
+                'city_slug': city_slug,
+                'city': historical.get('city') or deslugify(city_slug),
+                'target_date': historical.get('target_date') or target_date,
+                'interval': interval,
+                'event_id': historical.get('event_id'),
+                'event_title': historical.get('event_title'),
+                'source_url_expected': historical.get('source_url_expected'),
+                'source_url_actual': historical.get('source_url_actual'),
+                'source_url_matches_expected': historical.get('source_url_matches_expected'),
+                'market_series': historical.get('market_series') or [],
+                'forecast_markers': historical.get('forecast_markers') or [],
+                'snapshot_count': historical.get('snapshot_count') or 0,
+                'forecast_snapshot_count': historical.get('forecast_snapshot_count') or 0,
+                'historical_mode': True,
+            }
 
         market_series = self._aggregate_market_snapshots(market_snapshots, interval_seconds)
         markers = self._build_forecast_markers(forecast_snapshots)
@@ -69,6 +101,7 @@ class TrackerDashboardStore:
             'forecast_markers': markers,
             'snapshot_count': len(market_snapshots),
             'forecast_snapshot_count': len(forecast_snapshots),
+            'historical_mode': False,
         }
 
     def _aggregate_market_snapshots(self, snapshots: list[dict[str, Any]], interval_seconds: int) -> list[dict[str, Any]]:

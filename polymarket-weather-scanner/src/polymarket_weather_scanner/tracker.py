@@ -35,6 +35,7 @@ DEFAULT_CITY_SOURCES: dict[str, str] = {
     'Sao Paulo': 'https://www.wunderground.com/history/daily/br/guarulhos/SBGR',
     'Miami': 'https://www.wunderground.com/history/daily/us/fl/miami/KMIA',
     'Buenos Aires': 'https://www.wunderground.com/history/daily/ar/ezeiza/SAEZ',
+    'Taipei': 'https://www.wunderground.com/history/daily/tw/taipei/RCSS',
 }
 
 
