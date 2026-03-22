@@ -68,6 +68,7 @@ class TrackerDashboardStore:
         historical_series_path = event_dir / 'historical_series.json'
         if not market_snapshots and historical_series_path.exists():
             historical = self._read_json(historical_series_path)
+            historical_market_series = self._aggregate_prebuilt_market_series(historical.get('market_series') or [], interval_seconds)
             return {
                 'city_slug': city_slug,
                 'city': historical.get('city') or deslugify(city_slug),
@@ -78,9 +79,9 @@ class TrackerDashboardStore:
                 'source_url_expected': historical.get('source_url_expected'),
                 'source_url_actual': historical.get('source_url_actual'),
                 'source_url_matches_expected': historical.get('source_url_matches_expected'),
-                'market_series': historical.get('market_series') or [],
+                'market_series': historical_market_series,
                 'forecast_markers': historical.get('forecast_markers') or [],
-                'snapshot_count': historical.get('snapshot_count') or 0,
+                'snapshot_count': max((len(row.get('points') or []) for row in historical_market_series), default=0),
                 'forecast_snapshot_count': historical.get('forecast_snapshot_count') or 0,
                 'historical_mode': True,
             }
@@ -167,6 +168,28 @@ class TrackerDashboardStore:
                 })
                 previous_signature = signature
         return markers
+
+    def _aggregate_prebuilt_market_series(self, series_rows: list[dict[str, Any]], interval_seconds: int) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        for row in series_rows:
+            bucket_map: dict[int, dict[str, Any]] = {}
+            for point in row.get('points') or []:
+                parsed = parse_utc(point.get('ts'))
+                if parsed is None:
+                    continue
+                bucket_ts = floor_timestamp(int(parsed.timestamp()), interval_seconds)
+                normalized = dict(point)
+                normalized['ts'] = iso_utc_from_ts(bucket_ts)
+                bucket_map[bucket_ts] = normalized
+            points = [bucket_map[ts] for ts in sorted(bucket_map)]
+            out.append({
+                'market_id': row.get('market_id'),
+                'label': row.get('label'),
+                'history_source': row.get('history_source'),
+                'points': points,
+            })
+        out.sort(key=lambda item: sort_bucket_label(item.get('label') or item.get('market_id') or ''))
+        return out
 
     @staticmethod
     def _read_json(path: Path) -> dict[str, Any]:
