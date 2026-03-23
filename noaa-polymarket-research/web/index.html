@@ -1,0 +1,49 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Forecast Snapshot Tracker</title>
+<style>
+body{font-family:Arial,sans-serif;margin:20px;background:#111;color:#eee} select{margin-right:10px;padding:6px} table{border-collapse:collapse;width:100%;margin-top:16px} th,td{border:1px solid #444;padding:8px;text-align:left} th{background:#222;position:sticky;top:0} tr:nth-child(even){background:#181818} .meta{color:#aaa;margin-bottom:10px} .warn{color:#f7b955}
+</style></head><body>
+<h1>Forecast Snapshot Tracker</h1>
+<div class="meta" id="meta">Loading…</div>
+<div>
+<label>Station <select id="station"></select></label>
+<label>Target date <select id="targetDate"></select></label>
+</div>
+<table id="tbl"><thead></thead><tbody></tbody></table>
+<script>
+async function main(){
+  const data = await fetch('./data.json').then(r=>r.json());
+  document.getElementById('meta').textContent = `Generated: ${data.generated_at_utc} | Rows: ${data.rows.length}`;
+  const stationSel = document.getElementById('station');
+  const dateSel = document.getElementById('targetDate');
+  const stations = data.stations.map(s=>({code:s.station_code,label:`${s.city_label} (${s.station_code})`}));
+  stations.forEach(s=>{ const o=document.createElement('option'); o.value=s.code; o.textContent=s.label; stationSel.appendChild(o); });
+  function refreshDates(){
+    const dates=[...new Set(data.rows.filter(r=>r.station_code===stationSel.value).map(r=>r.target_date_local))].sort();
+    dateSel.innerHTML='';
+    dates.forEach(d=>{const o=document.createElement('option');o.value=d;o.textContent=d;dateSel.appendChild(o);});
+    render();
+  }
+  function render(){
+    const filtered = data.rows.filter(r=>r.station_code===stationSel.value && r.target_date_local===dateSel.value);
+    const sourceIds = data.sources.map(s=>s.source_id);
+    const sourceNames = Object.fromEntries(data.sources.map(s=>[s.source_id,s.display_name]));
+    const grouped = {};
+    filtered.forEach(r=>{ grouped[r.snapshot_time_utc] ||= {}; grouped[r.snapshot_time_utc][r.source_id]=r; });
+    const times = Object.keys(grouped).sort().reverse();
+    document.querySelector('#tbl thead').innerHTML = '<tr><th>Snapshot time (UTC)</th>' + sourceIds.map(id=>`<th>${sourceNames[id]} max °C / °F</th>`).join('') + '</tr>';
+    document.querySelector('#tbl tbody').innerHTML = times.map(ts=>{
+      const cols = sourceIds.map(id=>{
+        const row = grouped[ts][id];
+        if(!row || row.forecast_daily_max_c===null || row.forecast_daily_max_c===undefined) return '<td class="warn">—</td>';
+        return `<td>${row.forecast_daily_max_c.toFixed(2)} / ${row.forecast_daily_max_f.toFixed(2)}</td>`;
+      }).join('');
+      return `<tr><td>${ts}</td>${cols}</tr>`;
+    }).join('');
+  }
+  stationSel.addEventListener('change', refreshDates);
+  dateSel.addEventListener('change', render);
+  if(stations.length){ stationSel.value=stations[0].code; refreshDates(); }
+}
+main();
+</script></body></html>
