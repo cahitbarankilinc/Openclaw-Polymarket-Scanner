@@ -199,16 +199,22 @@ async function main(){
     let prevValues = null;
     document.querySelector('#tbl tbody').innerHTML = times.map(ts=>{
       const currentValues = sourceIds.map(id=> numericValue(grouped[ts][id]));
-      const changedFlags = currentValues.map((val, idx) => prevValues ? val !== prevValues[idx] : true);
+      const changedFlags = currentValues.map((val, idx) => {
+        if (val === null || val === undefined) return false;
+        if (!prevValues) return false;
+        const prev = prevValues[idx];
+        if (prev === null || prev === undefined) return false;
+        return val !== prev;
+      });
       const rowHasDiff = changedFlags.some(Boolean);
-      const hiddenClass = onlyDiff && !rowHasDiff ? 'hidden-row' : '';
+      const hiddenClass = onlyDiff && prevValues && !rowHasDiff ? 'hidden-row' : '';
       const cols = sourceIds.map((id, idx)=>{
         const row = grouped[ts][id];
         const value = currentValues[idx];
+        if(value === null || value === undefined) return '<td class="warn">—</td>';
         let cls = '';
         if(changedFlags[idx]) cls = 'diff-cell';
         if(inRange(value)) cls = 'range-cell';
-        if(value === null || value === undefined) return '<td class="warn">—</td>';
         return `<td class="${cls}">${value.toFixed(2)}</td>`;
       }).join('');
       prevValues = currentValues;
