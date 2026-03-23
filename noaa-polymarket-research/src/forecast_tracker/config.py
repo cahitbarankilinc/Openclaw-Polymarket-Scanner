@@ -31,6 +31,7 @@ class SourceDef:
     source_family: str
     enabled: bool = True
     notes: str = ''
+    sort_order: int = 0
 
 
 def load_stations() -> list[Station]:
@@ -40,4 +41,8 @@ def load_stations() -> list[Station]:
 
 def load_sources() -> list[SourceDef]:
     data = json.loads((CONFIG_DIR / 'sources.json').read_text())
-    return [SourceDef(**row) for row in data if row.get('enabled', True)]
+    out: list[SourceDef] = []
+    for idx, row in enumerate(data):
+        if row.get('enabled', True):
+            out.append(SourceDef(sort_order=idx, **row))
+    return out

@@ -12,6 +12,7 @@ from .db import connect
 from .derive import summarize_hourly_maxes
 from .sources.nws_noaa import fetch_nws
 from .sources.open_meteo import fetch_open_meteo
+from .sources.wunderground import fetch_wunderground
 
 
 def utc_now_iso() -> str:
@@ -65,11 +66,13 @@ def write_raw_payload(run_id: int, station_code: str, source_id: str, payload: d
     )
 
 
-def fetch_source(source_id: str, lat: float, lon: float, country: str):
+def fetch_source(source_id: str, lat: float, lon: float, country: str, source_url: str):
     if source_id == 'nws_noaa':
         if country != 'US':
             return None
         return fetch_nws(lat, lon)
+    if source_id == 'wunderground':
+        return fetch_wunderground(source_url)
     if source_id in {'gfs', 'ecmwf', 'icon'}:
         return fetch_open_meteo(source_id, lat, lon)
     raise ValueError(f'Unsupported source_id: {source_id}')
@@ -77,7 +80,16 @@ def fetch_source(source_id: str, lat: float, lon: float, country: str):
 
 def build_dashboard_json(conn: sqlite3.Connection) -> None:
     stations = [dict(row) for row in conn.execute('SELECT * FROM stations ORDER BY city_label')]
-    sources = [dict(row) for row in conn.execute('SELECT * FROM sources ORDER BY display_name')]
+    source_defs = load_sources()
+    source_rows = {row['source_id']: dict(row) for row in conn.execute('SELECT * FROM sources')}
+    sources = []
+    for source_def in source_defs:
+        row = source_rows.get(source_def.source_id, {})
+        row.setdefault('source_id', source_def.source_id)
+        row.setdefault('display_name', source_def.display_name)
+        row.setdefault('source_family', source_def.source_family)
+        row['sort_order'] = source_def.sort_order
+        sources.append(row)
     rows = [dict(row) for row in conn.execute(
         '''SELECT fs.snapshot_time_utc, fs.station_code, fs.source_id, fs.target_date_local,
                   fs.target_timezone,
@@ -169,6 +181,7 @@ async function main(){
   const stations = data.stations.map(s=>({code:s.station_code,label:`${s.city_label} (${s.station_code})`, city:s.city_label, timezone:s.timezone, country:s.country}));
   const stationMap = Object.fromEntries(stations.map(s=>[s.code, s]));
   const noaaStations = stations.filter(s => s.country === 'US').map(s => `${s.city} (${s.code})`);
+  const sortedSources = [...data.sources].sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   let unit = 'c';
   let onlyDiff = false;
   stations.forEach(s=>{ const o=document.createElement('option'); o.value=s.code; o.textContent=s.label; stationSel.appendChild(o); });
@@ -197,8 +210,8 @@ async function main(){
   function render(){
     const station = stationMap[stationSel.value];
     const filtered = data.rows.filter(r=>r.station_code===stationSel.value && r.target_date_local===dateSel.value);
-    const sourceIds = data.sources.map(s=>s.source_id);
-    const sourceNames = Object.fromEntries(data.sources.map(s=>[s.source_id,s.display_name]));
+    const sourceIds = sortedSources.map(s=>s.source_id);
+    const sourceNames = Object.fromEntries(sortedSources.map(s=>[s.source_id,s.display_name]));
     const grouped = {};
     filtered.forEach(r=>{ grouped[r.snapshot_time_utc] ||= {}; grouped[r.snapshot_time_utc][r.source_id]=r; });
     const times = Object.keys(grouped).sort().reverse();
@@ -269,7 +282,7 @@ def run_once() -> dict:
         for station in stations:
             for source in sources:
                 try:
-                    result = fetch_source(source.source_id, station.latitude, station.longitude, station.country)
+                    result = fetch_source(source.source_id, station.latitude, station.longitude, station.country, station.resolution_source_url)
                     if result is None:
                         continue
                     write_raw_payload(run_id, station.station_code, source.source_id, result.payload, result.status_code, snapshot_time, conn)

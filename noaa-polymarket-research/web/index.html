@@ -58,6 +58,7 @@ async function main(){
   const stations = data.stations.map(s=>({code:s.station_code,label:`${s.city_label} (${s.station_code})`, city:s.city_label, timezone:s.timezone, country:s.country}));
   const stationMap = Object.fromEntries(stations.map(s=>[s.code, s]));
   const noaaStations = stations.filter(s => s.country === 'US').map(s => `${s.city} (${s.code})`);
+  const sortedSources = [...data.sources].sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   let unit = 'c';
   let onlyDiff = false;
   stations.forEach(s=>{ const o=document.createElement('option'); o.value=s.code; o.textContent=s.label; stationSel.appendChild(o); });
@@ -86,8 +87,8 @@ async function main(){
   function render(){
     const station = stationMap[stationSel.value];
     const filtered = data.rows.filter(r=>r.station_code===stationSel.value && r.target_date_local===dateSel.value);
-    const sourceIds = data.sources.map(s=>s.source_id);
-    const sourceNames = Object.fromEntries(data.sources.map(s=>[s.source_id,s.display_name]));
+    const sourceIds = sortedSources.map(s=>s.source_id);
+    const sourceNames = Object.fromEntries(sortedSources.map(s=>[s.source_id,s.display_name]));
     const grouped = {};
     filtered.forEach(r=>{ grouped[r.snapshot_time_utc] ||= {}; grouped[r.snapshot_time_utc][r.source_id]=r; });
     const times = Object.keys(grouped).sort().reverse();
