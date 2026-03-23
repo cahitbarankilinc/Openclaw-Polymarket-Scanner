@@ -26,7 +26,7 @@ def c_to_f(value: float | None) -> float | None:
 def summarize_hourly_maxes(times: list[str], temps_c: list[float | None], timezone_name: str, max_days: int = 6) -> list[DailyForecastSummary]:
     tz = ZoneInfo(timezone_name)
     buckets: dict[str, list[float]] = defaultdict(list)
-    for ts, temp in zip(times, temps_c, strict=False):
+    for ts, temp in zip(times, temps_c):
         if temp is None:
             continue
         dt = datetime.fromisoformat(ts).astimezone(tz)

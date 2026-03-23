@@ -4,7 +4,7 @@ import hashlib
 import json
 import sqlite3
 import traceback
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import DB_PATH, RAW_PAYLOAD_DIR, WEB_DIR, load_sources, load_stations
@@ -15,7 +15,7 @@ from .sources.open_meteo import fetch_open_meteo
 
 
 def utc_now_iso() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat()
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
 def ensure_dirs() -> None:
