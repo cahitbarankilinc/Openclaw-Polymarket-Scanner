@@ -80,18 +80,30 @@ def build_dashboard_json(conn: sqlite3.Connection) -> None:
     sources = [dict(row) for row in conn.execute('SELECT * FROM sources ORDER BY display_name')]
     rows = [dict(row) for row in conn.execute(
         '''SELECT fs.snapshot_time_utc, fs.station_code, fs.source_id, fs.target_date_local,
+                  fs.target_timezone,
                   fs.forecast_daily_max_c, fs.forecast_daily_max_f,
                   fs.forecast_daily_min_c, fs.forecast_daily_min_f,
                   fs.hour_count_used
            FROM forecast_snapshots fs
-           WHERE fs.snapshot_time_utc >= datetime('now', '-14 days')
-           ORDER BY fs.snapshot_time_utc DESC'''
+           ORDER BY fs.target_date_local DESC, fs.snapshot_time_utc DESC'''
     )]
+    stats = dict(conn.execute(
+        '''SELECT
+             COUNT(*) AS snapshot_count,
+             COUNT(DISTINCT station_code) AS station_count,
+             COUNT(DISTINCT source_id) AS source_count,
+             MIN(target_date_local) AS first_target_date,
+             MAX(target_date_local) AS last_target_date,
+             MIN(snapshot_time_utc) AS first_snapshot_time_utc,
+             MAX(snapshot_time_utc) AS last_snapshot_time_utc
+           FROM forecast_snapshots'''
+    ).fetchone())
     bundle = {
         'generated_at_utc': utc_now_iso(),
         'stations': stations,
         'sources': sources,
         'rows': rows,
+        'stats': stats,
     }
     (WEB_DIR / 'data.json').write_text(json.dumps(bundle, ensure_ascii=False), encoding='utf-8')
 
@@ -100,49 +112,73 @@ def build_dashboard_html() -> None:
     html = '''<!doctype html>
 <html><head><meta charset="utf-8"><title>Forecast Snapshot Tracker</title>
 <style>
-body{font-family:Arial,sans-serif;margin:20px;background:#111;color:#eee} select{margin-right:10px;padding:6px} table{border-collapse:collapse;width:100%;margin-top:16px} th,td{border:1px solid #444;padding:8px;text-align:left} th{background:#222;position:sticky;top:0} tr:nth-child(even){background:#181818} .meta{color:#aaa;margin-bottom:10px} .warn{color:#f7b955}
+body{font-family:Arial,sans-serif;margin:20px;background:#111;color:#eee}
+select{margin-right:10px;padding:6px;background:#1c1c1c;color:#eee;border:1px solid #444}
+label{margin-right:12px}
+table{border-collapse:collapse;width:100%;margin-top:16px}
+th,td{border:1px solid #444;padding:8px;text-align:left;vertical-align:top}
+th{background:#222;position:sticky;top:0}
+tr:nth-child(even){background:#181818}
+.meta,.submeta{color:#aaa;margin-bottom:10px}
+.warn{color:#f7b955}
+.card{background:#181818;border:1px solid #333;padding:12px;margin:12px 0;border-radius:8px}
+.small{font-size:12px;color:#aaa}
 </style></head><body>
 <h1>Forecast Snapshot Tracker</h1>
 <div class="meta" id="meta">Loading…</div>
-<div>
+<div class="submeta" id="submeta"></div>
+<div class="card">
 <label>Station <select id="station"></select></label>
 <label>Target date <select id="targetDate"></select></label>
 </div>
 <table id="tbl"><thead></thead><tbody></tbody></table>
 <script>
+function fmtLocal(iso, tz){
+  try {
+    return new Date(iso).toLocaleString('en-GB', { timeZone: tz, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  } catch (e) {
+    return iso;
+  }
+}
 async function main(){
   const data = await fetch('./data.json').then(r=>r.json());
-  document.getElementById('meta').textContent = `Generated: ${data.generated_at_utc} | Rows: ${data.rows.length}`;
+  const stats = data.stats || {};
+  document.getElementById('meta').textContent = `Generated: ${data.generated_at_utc} | Snapshots: ${stats.snapshot_count ?? data.rows.length} | Stations: ${stats.station_count ?? data.stations.length} | Sources: ${stats.source_count ?? data.sources.length}`;
+  document.getElementById('submeta').textContent = `Target-date coverage: ${stats.first_target_date || '—'} → ${stats.last_target_date || '—'} | Snapshot coverage: ${stats.first_snapshot_time_utc || '—'} → ${stats.last_snapshot_time_utc || '—'}`;
   const stationSel = document.getElementById('station');
   const dateSel = document.getElementById('targetDate');
-  const stations = data.stations.map(s=>({code:s.station_code,label:`${s.city_label} (${s.station_code})`}));
+  const stations = data.stations.map(s=>({code:s.station_code,label:`${s.city_label} (${s.station_code})`, timezone:s.timezone}));
+  const stationMap = Object.fromEntries(stations.map(s=>[s.code, s]));
   stations.forEach(s=>{ const o=document.createElement('option'); o.value=s.code; o.textContent=s.label; stationSel.appendChild(o); });
   function refreshDates(){
-    const dates=[...new Set(data.rows.filter(r=>r.station_code===stationSel.value).map(r=>r.target_date_local))].sort();
+    const dates=[...new Set(data.rows.filter(r=>r.station_code===stationSel.value).map(r=>r.target_date_local))].sort().reverse();
+    const prev=dateSel.value;
     dateSel.innerHTML='';
     dates.forEach(d=>{const o=document.createElement('option');o.value=d;o.textContent=d;dateSel.appendChild(o);});
+    if(prev && dates.includes(prev)) dateSel.value=prev;
     render();
   }
   function render(){
+    const station = stationMap[stationSel.value];
     const filtered = data.rows.filter(r=>r.station_code===stationSel.value && r.target_date_local===dateSel.value);
     const sourceIds = data.sources.map(s=>s.source_id);
     const sourceNames = Object.fromEntries(data.sources.map(s=>[s.source_id,s.display_name]));
     const grouped = {};
     filtered.forEach(r=>{ grouped[r.snapshot_time_utc] ||= {}; grouped[r.snapshot_time_utc][r.source_id]=r; });
     const times = Object.keys(grouped).sort().reverse();
-    document.querySelector('#tbl thead').innerHTML = '<tr><th>Snapshot time (UTC)</th>' + sourceIds.map(id=>`<th>${sourceNames[id]} max °C / °F</th>`).join('') + '</tr>';
+    document.querySelector('#tbl thead').innerHTML = '<tr><th>Snapshot time (UTC)</th><th>Snapshot time (station local)</th>' + sourceIds.map(id=>`<th>${sourceNames[id]}<br><span class="small">max °C / °F</span></th>`).join('') + '</tr>';
     document.querySelector('#tbl tbody').innerHTML = times.map(ts=>{
       const cols = sourceIds.map(id=>{
         const row = grouped[ts][id];
         if(!row || row.forecast_daily_max_c===null || row.forecast_daily_max_c===undefined) return '<td class="warn">—</td>';
         return `<td>${row.forecast_daily_max_c.toFixed(2)} / ${row.forecast_daily_max_f.toFixed(2)}</td>`;
       }).join('');
-      return `<tr><td>${ts}</td>${cols}</tr>`;
+      return `<tr><td>${ts}</td><td>${fmtLocal(ts, station.timezone)}</td>${cols}</tr>`;
     }).join('');
   }
   stationSel.addEventListener('change', refreshDates);
   dateSel.addEventListener('change', render);
-  if(stations.length){ stationSel.value=stations[0].code; refreshDates(); }
+  if(stations.length){ stationSel.value=stations[0].code; refreshDates(); if(!dateSel.value){ render(); } }
 }
 main();
 </script></body></html>'''
@@ -179,9 +215,20 @@ def run_once() -> dict:
                                  forecast_daily_max_c, forecast_daily_max_f, forecast_daily_min_c, forecast_daily_min_f,
                                  hour_count_used, created_at_utc)
                                VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',
-                            (run_id, snapshot_time, station.station_code, source.source_id, summary.target_date_local, summary.target_timezone,
-                             summary.forecast_daily_max_c, summary.forecast_daily_max_f, summary.forecast_daily_min_c, summary.forecast_daily_min_f,
-                             summary.hour_count_used, snapshot_time),
+                            (
+                                run_id,
+                                snapshot_time,
+                                station.station_code,
+                                source.source_id,
+                                summary.target_date_local,
+                                summary.target_timezone,
+                                summary.forecast_daily_max_c,
+                                summary.forecast_daily_max_f,
+                                summary.forecast_daily_min_c,
+                                summary.forecast_daily_min_f,
+                                summary.hour_count_used,
+                                snapshot_time,
+                            ),
                         )
                         inserted += 1
                     conn.commit()
@@ -191,12 +238,18 @@ def run_once() -> dict:
         build_dashboard_json(conn)
         build_dashboard_html()
         status = 'ok' if not errors else 'partial'
-        conn.execute('UPDATE snapshot_runs SET finished_at_utc=?, status=?, error_summary=? WHERE run_id=?', (utc_now_iso(), status, '\n'.join(errors[:50]), run_id))
+        conn.execute(
+            'UPDATE snapshot_runs SET finished_at_utc=?, status=?, error_summary=? WHERE run_id=?',
+            (utc_now_iso(), status, '\n'.join(errors[:50]), run_id),
+        )
         conn.commit()
         return {'run_id': run_id, 'status': status, 'inserted': inserted, 'errors': errors}
     except Exception:
         tb = traceback.format_exc()
-        conn.execute('UPDATE snapshot_runs SET finished_at_utc=?, status=?, error_summary=? WHERE run_id=?', (utc_now_iso(), 'error', tb, run_id))
+        conn.execute(
+            'UPDATE snapshot_runs SET finished_at_utc=?, status=?, error_summary=? WHERE run_id=?',
+            (utc_now_iso(), 'error', tb, run_id),
+        )
         conn.commit()
         raise
     finally:
