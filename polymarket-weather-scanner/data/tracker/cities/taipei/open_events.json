@@ -4,24 +4,6 @@
   "source_url_expected": "https://www.wunderground.com/history/daily/tw/taipei/RCSS",
   "open_events": [
     {
-      "event_id": "282563",
-      "event_slug": "highest-temperature-in-taipei-on-march-22-2026",
-      "event_title": "Highest temperature in Taipei on March 22?",
-      "target_date": "2026-03-22",
-      "event_end_utc": "2026-03-22T12:00:00Z",
-      "source_url_actual": "",
-      "source_url_matches_expected": false
-    },
-    {
-      "event_id": "285786",
-      "event_slug": "highest-temperature-in-taipei-on-march-23-2026",
-      "event_title": "Highest temperature in Taipei on March 23?",
-      "target_date": "2026-03-23",
-      "event_end_utc": "2026-03-23T12:00:00Z",
-      "source_url_actual": null,
-      "source_url_matches_expected": false
-    },
-    {
       "event_id": "289214",
       "event_slug": "highest-temperature-in-taipei-on-march-24-2026",
       "event_title": "Highest temperature in Taipei on March 24?",
@@ -45,6 +27,15 @@
       "event_title": "Highest temperature in Taipei on March 26?",
       "target_date": "2026-03-26",
       "event_end_utc": "2026-03-26T12:00:00Z",
+      "source_url_actual": null,
+      "source_url_matches_expected": false
+    },
+    {
+      "event_id": "299434",
+      "event_slug": "highest-temperature-in-taipei-on-march-27-2026",
+      "event_title": "Highest temperature in Taipei on March 27?",
+      "target_date": "2026-03-27",
+      "event_end_utc": "2026-03-27T12:00:00Z",
       "source_url_actual": null,
       "source_url_matches_expected": false
     }

@@ -1,0 +1,45 @@
+[
+  {
+    "model": "ministral-3:8b",
+    "error": null,
+    "report": {
+      "passed": 140,
+      "total": 140,
+      "fixed_total": 20,
+      "fixed_failed": [],
+      "rand_total": 120,
+      "rand_failed_count": 0,
+      "sample_failed": [],
+      "stress": false,
+      "stress_expected": false,
+      "stress_ok": true,
+      "stress_ms": 0.12962499749846756,
+      "stress_error": null
+    },
+    "code_preview": "def is_match(s: str, p: str) -> bool:\n    m, n = len(s), len(p)\n    dp = [[False] * (n + 1) for _ in range(m + 1)]\n    dp[0][0] = True  # Boş string ve boş pattern\n\n    # Boş string ile pattern'in başlangıç kısmı (örn: \"a*\" ile \"a*\" eşleşir)\n    for j in range(1, n + 1):\n        if p[j - 1] == '*':\n            dp[0][j] = dp[0][j - 2]\n\n    for i in range(1, m + 1):\n        for j in range(1, n + 1):\n            if p[j - 1] == '.' or p[j - 1] == s[i - 1]:\n                dp[i][j] = dp[i - 1][j - 1]\n            elif p[j - 1] == '*':\n                dp[i][j] = dp[i][j - 2]  # 0 kez tekrar\n                if p[j - 2] == '.' or p[j - 2] == s[i - 1]:\n                    dp[i][j] = dp[i][j] or dp[i -",
+    "metrics": {
+      "wall_time_sec": 58.352,
+      "total_duration_sec": 58.334,
+      "load_duration_sec": 4.0,
+      "prompt_tokens": 739,
+      "prompt_tps": 170.91,
+      "output_tokens": 957,
+      "output_tps": 19.36
+    }
+  },
+  {
+    "model": "qwen3.5:9b",
+    "error": "Traceback (most recent call last):\n  File \"<string>\", line 6, in <module>\n    assert hasattr(m,'is_match'), 'Fonksiyon adı yanlış veya eksik'\n           ~~~~~~~^^^^^^^^^^^^^^\nAssertionError: Fonksiyon adı yanlış veya eksik",
+    "report": null,
+    "code_preview": "",
+    "metrics": {
+      "wall_time_sec": 658.758,
+      "total_duration_sec": 658.75,
+      "load_duration_sec": 4.912,
+      "prompt_tokens": 200,
+      "prompt_tps": 109.7,
+      "output_tokens": 8001,
+      "output_tps": 12.45
+    }
+  }
+]

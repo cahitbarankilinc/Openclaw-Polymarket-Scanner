@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "skills": {
+    "github": {
+      "version": "1.0.0",
+      "installedAt": 1773704521262
+    },
+    "agentmail": {
+      "version": "1.1.1",
+      "installedAt": 1773704523731
+    },
+    "linear": {
+      "version": "1.0.0",
+      "installedAt": 1773704526559
+    },
+    "automation-workflows": {
+      "version": "0.1.0",
+      "installedAt": 1773704528601
+    }
+  }
+}
